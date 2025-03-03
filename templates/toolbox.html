@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block header %}
+<h1>{% block title %}- Download Youtube Video:{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<form action="javascript:addElement()" method="post">
+    <label for="youtube_url">Youtube Url</label>
+    <input type="url" name="youtube_url" value="" id="youtube_url" required>
+    <label>Select Video/Audio format to be extracted.</label>
+    <div>
+        <input type="radio" id="video" name="output_type" value="video" checked/>
+        <label for="video">Video</label>
+        <input type="radio" id="audio" name="output_type" value="audio"/>
+        <label for="audio">Audio</label>
+    </div>
+    <input type="submit" value="Submit">
+</form>
+<div id="info">
+</div>
+<script>
+    function hook(uuid, progress, bar) {
+        var prog_url = "/progress_data/" + uuid;
+        var id = setInterval(frame, 500);
+        var json_data = {"url": document.getElementById("youtube_url").value,
+            "format": document.getElementById("video").checked}
+        function frame() {
+            $.getJSON(prog_url, json_data, function(res){
+                if (res.cur != null) {
+                    bar.style.width = res.cur + "%";
+                }
+                if (res.error) {
+                    progress.setAttribute("data-label", res.title + " downloading error: " + res.error);
+                    progress.setAttribute("style", "color:red");
+                    clearInterval(id);
+                } else if (res.cur == 100) {
+                    progress.setAttribute("data-label", res.label + " downloading completed!");
+                    clearInterval(id);
+                } else {
+                    progress.setAttribute("data-label", res.label + " downloading " + res.cur + "%");
+                }
+            });
+        }
+    }
+    function addElement() {
+        if (document.getElementById("youtube_url").value == "") {
+            return;
+        }
+        let uuid = self.crypto.randomUUID();
+        console.log(uuid);
+        var progress = document.createElement("div");
+        progress.className="progress";
+        progress.setAttribute("id", "prog" + uuid);
+        progress.setAttribute("data-label", "Initializing...")
+
+        var bar = document.createElement("span");
+        bar.className="value";
+        bar.setAttribute("id", uuid);
+        bar.setAttribute("style", "width:0%");
+
+        progress.appendChild(bar);
+
+        document.getElementById("info").appendChild(progress);
+        document.getElementById("info").appendChild(document.createElement("br"));
+
+        hook(uuid, progress, bar);
+    }
+</script>
+{% endblock %}
