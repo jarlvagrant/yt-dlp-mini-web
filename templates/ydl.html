@@ -1,7 +1,29 @@
 {% extends 'base.html' %}
 
 {% block header %}
-<h1>{% block title %}- Download Youtube Video:{% endblock %}</h1>
+<h2>{% block title %}- Download Youtube Video:{% endblock %}</h2>
+<div class="right">
+    <div>
+        <label class="gray" for="video_dir">Save video to: </label>
+        <input class="gray" id="video_dir" name="video_dir" value="{{ video_dir }}" onfocusout="validate_path(event)"/>
+    </div>
+    <div>
+        <label class="gray" for="audio_dir">Save audio to: </label>
+        <input class="gray" id="audio_dir" name="audio_dir" value="{{ audio_dir }}" onfocusout="validate_path(event)"/>
+    </div>
+</div>
+<script>
+    function validate_path(event) {
+        console.log(event.target);
+        $.post("/update_dir", {id:event.target.id, dir:event.target.value}, function(response) {
+            event.target.className = event.target.className.replace(" error", "")
+            if (response == "f") {
+                event.target.className = event.target.className + " error"
+                alert("Please input a valid " + event.target.id + " directory!")
+            }
+        })
+    }
+</script>
 {% endblock %}
 
 {% block content %}
@@ -11,9 +33,9 @@
     <label>Select Video/Audio format to be extracted.</label>
     <div>
         <input type="radio" id="video" name="output_type" value="video" checked/>
-        <label for="video">Video</label>
+        <label class="radio" for="video">Video</label>
         <input type="radio" id="audio" name="output_type" value="audio"/>
-        <label for="audio">Audio</label>
+        <label class="radio" for="audio">Audio</label>
     </div>
     <input type="submit" value="Submit">
 </form>

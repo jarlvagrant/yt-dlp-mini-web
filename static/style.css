@@ -116,6 +116,21 @@ nav ul li a, nav ul li span, header .action {
   margin-bottom: 0.5em;
 }
 
+label.gray {
+  color:  #43595d;
+}
+
+label.radio {
+  font-weight: normal;
+}
+
+div.right {
+  margin-top: 0em;
+  margin-bottom: 0em;
+  margin-left: auto;
+  margin-bottom: 0em;
+}
+
 .content input, .content textarea {
   margin-left: 1em;
   margin-bottom: 1em;
@@ -128,6 +143,12 @@ nav ul li a, nav ul li span, header .action {
 
 input.danger {
   color: #cc2f2e;
+}
+
+input.gray {
+  margin-left: 0.2em;
+  margin-bottom: 0.2em;
+  background: #dee8e9 ;
 }
 
 .error {

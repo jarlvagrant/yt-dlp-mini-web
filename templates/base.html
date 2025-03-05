@@ -7,8 +7,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <nav>
     <h1><a href="{{ url_for('index') }}">XXM Toolbox</a></h1>
-    <label for="output_dir">Save to: </label>
-    <input id="output_dir" name="output_dir" value="{{ output_dir }}" onfocusout="validate_path()"/>
 </nav>
 
 <section class="content">
@@ -20,17 +18,3 @@
     {% endfor %}
     {% block content %}{% endblock %}
 </section>
-<script>
-    function validate_path() {
-        let dir = document.getElementById("output_dir");
-        console.log(dir);
-<!--            dir.className = dir.className.replace(" danger", "")-->
-        $.post("/update_dir", {dir:dir.value}, function(response) {
-            dir.className = dir.className.replace(" error", "")
-            if (response == "f") {
-                dir.className = dir.className + " error"
-                alert("Please input a valid output directory!")
-            }
-        })
-    }
-</script>

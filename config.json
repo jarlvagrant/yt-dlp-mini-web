@@ -1,3 +1,4 @@
 {
-    "output_dir": "/data"
+    "video_dir": "/video",
+    "audio_dir": "/audio"
 }

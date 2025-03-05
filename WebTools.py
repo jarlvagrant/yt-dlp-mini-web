@@ -20,12 +20,13 @@ def writeJson(file, content):
 
 
 config = readJson("config.json")
-output_dir = config.get("output_dir", ".")
+video_dir = config.get("video_dir", ".")
+audio_dir = config.get("audio_dir", ".")
 
 
 class Index(View):
 	def dispatch_request(self):
-		return render_template('base.html', output_dir=output_dir)
+		return render_template('index.html')
 
 
 class UpdateDir(View):
@@ -33,13 +34,17 @@ class UpdateDir(View):
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		path = request.form.get("dir")
-		print(path)
+		dir_type = request.form.get("id")
 		is_dir = os.path.isdir(path)
 		response = "f"
 		if is_dir:
 			response = "t"
-			config["output_dir"] = path
+			if dir_type == "video_dir":
+				config["video_dir"] = path
+			elif dir_type == "audio_dir":
+				config["audio_dir"] = path
 			writeJson("config.json", config)
+			print("Updating directory: %s = %s" % (dir_type, path))
 		return Response(response=response, status=200)
 
 
@@ -47,7 +52,7 @@ class YoutubeDownloader(View):
 	outputTypes = {'video': 'mp4/bestvideo/best', 'audio': 'm4a/bestaudio/best'}
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("toolbox.html", output_dir=output_dir)
+		return render_template("ydl.html", video_dir=video_dir, audio_dir=audio_dir)
 
 
 class Downloader:
