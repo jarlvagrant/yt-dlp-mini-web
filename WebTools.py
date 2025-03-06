@@ -20,8 +20,14 @@ def writeJson(file, content):
 
 
 config = readJson("config.json")
-video_dir = config.get("video_dir", ".")
-audio_dir = config.get("audio_dir", ".")
+
+
+def getVideoDir():
+	return config.get("video_dir", ".")
+
+
+def getAudioDir():
+	return config.get("audio_dir", ".")
 
 
 class Index(View):
@@ -52,7 +58,7 @@ class YoutubeDownloader(View):
 	outputTypes = {'video': 'mp4/bestvideo/best', 'audio': 'm4a/bestaudio/best'}
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("ydl.html", video_dir=video_dir, audio_dir=audio_dir)
+		return render_template("ydl.html", video_dir=getVideoDir(), audio_dir=getAudioDir())
 
 
 class Downloader:
@@ -80,9 +86,13 @@ class Downloader:
 			self.cur = 100
 
 	def download_video(self):
-		global output_dir
-		ext = 'mp4/bestvideo/best' if self.format == "true" else 'm4a/bestaudio/best'
-		print("requested format " + ext)
+		if self.format == "true":
+			ext = 'mp4/bestvideo/best'
+			output_dir = getVideoDir()
+		else:
+			ext = 'm4a/bestaudio/best'
+			output_dir = getAudioDir()
+		print("requested format %s; output directory %s." % (ext, output_dir))
 		ydl_opts = {
 			"outtmpl": output_dir + '/%(title)s.%(ext)s',
 			# this is where you can edit how you'd like the filenames to be formatted
