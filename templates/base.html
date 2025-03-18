@@ -2,6 +2,19 @@
 <head>
     <title>Flask Dynamic Data</title>
     <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+    <script>
+        function validate_path(event) {
+            console.log(event.target);
+            $.post("/update_dir", {id:event.target.id, dir:event.target.value}, function(response) {
+                event.target.className = event.target.className.replace(" warn", "")
+                if (response !== event.target.value) {
+                    event.target.className = event.target.className + " warn"
+                    alert(event.target.value + " is not a valid directory!")
+                    document.getElementById(event.target.id).value = response
+                }
+            })
+        }
+    </script>
 </head>
 <title>{% block title %}{% endblock %} - XXM Toolbox</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">

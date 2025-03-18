@@ -12,18 +12,6 @@
         <input class="gray" id="audio_dir" name="audio_dir" value="{{ audio_dir }}" onfocusout="validate_path(event)"/>
     </div>
 </div>
-<script>
-    function validate_path(event) {
-        console.log(event.target);
-        $.post("/update_dir", {id:event.target.id, dir:event.target.value}, function(response) {
-            event.target.className = event.target.className.replace(" error", "")
-            if (response == "f") {
-                event.target.className = event.target.className + " error"
-                alert("Please input a valid " + event.target.id + " directory!")
-            }
-        })
-    }
-</script>
 {% endblock %}
 
 {% block content %}
@@ -48,10 +36,13 @@
         );
     }
     function hook(uuid, progress, bar) {
-        var prog_url = "/progress_data/" + uuid;
-        var id = setInterval(frame, 500);
-        var json_data = {"url": document.getElementById("youtube_url").value,
-            "format": document.getElementById("video").checked}
+        const prog_url = "/progress_data/" + uuid;
+        const id = setInterval(frame, 500);
+        const json_data = {
+            "url": document.getElementById("youtube_url").value,
+            "format": document.getElementById("video").checked
+        };
+
         function frame() {
             $.getJSON(prog_url, json_data, function(res){
                 if (res.cur != null) {
@@ -61,7 +52,7 @@
                     progress.setAttribute("data-label", res.title + " downloading error: " + res.error);
                     progress.setAttribute("style", "color:red");
                     clearInterval(id);
-                } else if (res.cur == 100) {
+                } else if (res.cur === 100) {
                     progress.setAttribute("data-label", res.label + " downloading completed!");
                     clearInterval(id);
                 } else {
@@ -71,17 +62,17 @@
         }
     }
     function addElement() {
-        if (document.getElementById("youtube_url").value == "") {
+        if (document.getElementById("youtube_url").value === "") {
             return;
         }
         let uuid = uuidv4();
         console.log(uuid);
-        var progress = document.createElement("div");
+        const progress = document.createElement("div");
         progress.className="progress";
         progress.setAttribute("id", "prog" + uuid);
         progress.setAttribute("data-label", "Initializing...")
 
-        var bar = document.createElement("span");
+        const bar = document.createElement("span");
         bar.className="value";
         bar.setAttribute("id", uuid);
         bar.setAttribute("style", "width:0%");

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block header %}
+<h2>{% block title %}- Download EBook and send to Kindle:{% endblock %}</h2>
+<div class="right">
+    <div>
+        <label class="gray" for="ebook_dir">Save video to: </label>
+        <input class="gray" id="ebook_dir" name="ebook_dir" value="{{ ebook_dir }}" onfocusout="validate_path(event)"/>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form action="javascript:processEbook()" method="post">
+    <label for="ebook_url">EBook Url</label>
+    <input type="url" name="ebook_url" value="" id="ebook_url" required>
+    <label for="author">Author</label>
+    <input name="author" value="" id="author">
+    <label for="cover">Cover</label>
+    <input name="cover" value="" id="cover">
+    <input type="submit" value="Submit">
+</form>
+<script>
+    function processEbook() {
+        console.log("processing ebook ");
+    }
+</script>
+{% endblock %}
