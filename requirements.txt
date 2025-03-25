@@ -7,5 +7,7 @@ blinker~=1.9.0
 click~=8.1.8
 itsdangerous~=2.2.0
 ebooklib~=0.18
+ebooklib~=0.18
 requests~=2.32.3
-validators
+validators~=0.34.0
+pandas~=2.2.3

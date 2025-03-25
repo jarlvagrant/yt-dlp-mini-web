@@ -1,7 +1,13 @@
-from flask import Flask
+from flask import Flask, render_template
+from flask.views import View
 
 from EbookSender import EBook
-from YdlWrapper import Index, UpdateDir, YoutubeDownloader, ProgressData
+from YdlWrapper import UpdateDir, YoutubeDownloader, ProgressData
+
+
+class Index(View):
+	def dispatch_request(self):
+		return render_template('index.html')
 
 
 def main():
