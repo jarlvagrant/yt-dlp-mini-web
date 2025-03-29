@@ -2,7 +2,7 @@ import datetime
 import json
 
 import pandas as pd
-from pandas import DataFrame
+from fake_useragent import UserAgent
 
 config_file = "config.json"
 book_csv_file = "books.csv"
@@ -11,6 +11,23 @@ book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'cre
 
 def getDate():
 	return datetime.date.today()
+
+
+class UserAgentGen(UserAgent):
+	def __init__(self):
+		super().__init__()
+		self.ua = self.random
+		print(f"User Agent: {self.ua}")
+
+	def get(self):
+		return self.ua
+
+	def renew(self):
+		self.ua = self.random
+		print(f"User Agent: {self.ua}")
+
+
+UA = UserAgentGen()
 
 
 class JsonIO:
@@ -81,6 +98,7 @@ class CsvIO:
 			if key not in self.columns:
 				return False
 		return True
+
 
 ConfigIO = JsonIO(config_file)
 BooksIO = CsvIO(book_csv_file, book_csv_columns)

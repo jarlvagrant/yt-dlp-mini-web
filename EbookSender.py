@@ -1,14 +1,16 @@
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlsplit, unquote
 
 import chinese_converter
 import requests
+from bs4 import BeautifulSoup
 from ebooklib import epub
 from flask import typing as ft, render_template, Response, request
 from flask.views import View
 
-from Utils import ConfigIO
+from Utils import ConfigIO, UA
 
 
 class EBook(View):
@@ -65,7 +67,7 @@ def clean_txt(txt):
 	txt = re.sub(r'^\s+(?=.)', '', txt)
 	txt = re.sub(r'(?<=.)\s+$', '', txt)
 	# Remove excessive line breaks.
-	txt = re.sub(r'\n{5,}', '\n\n\n\n', txt)
+	txt = re.sub(r'\n{3,}', '\n\n', txt)
 	# remove ASCII invalid chars : 0 to 8 and 11-14 to 24
 	txt = clean_ascii_chars(txt)
 
@@ -144,30 +146,72 @@ def split_txt(txt):
 	return indices
 
 
-def get_image(image_file):
+def get_image(url):
 	image = None
-	if image_file:
-		if os.path.isfile(image_file):
-			with open(image_file, 'rb') as f:
+	if url:
+		if os.path.isfile(url):
+			with open(url, 'rb') as f:
 				image = f.read()
-		elif image_file.startswith("http") or image_file.startswith("ftp"):
-			try:
-				image = requests.get(image_file, headers={
-					'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'}).content
-			except Exception as ex:
-				print(f"failed downloading image {ex}")
+		else:
+			extractHtmlImage(url)
 	return image
 
 
+def extractHtml(url: str, cookies=None):
+	retry = 5
+	while retry > 0:
+		try:
+			r = requests.get(url, headers={'User-Agent': UA.get()}, cookies=cookies)
+			r.raise_for_status()
+			return r
+		except Exception as ex:
+			print(f"Error: Downloading {url} with {ex}")
+			UA.renew()
+			retry -= 1
+	return None
+
+
+def extractHtmlImage(url: str):
+	image = None
+	response = extractHtml(url)
+	if response:
+		image = response.content
+	return image
+
+
+def extractHtmlText(url: str, cookies=None):
+	text = ""
+	response = extractHtml(url, cookies)
+	if response:
+		text = unquote(response.text)
+	return text
+
+
+def extractHtmlSoup(url: str, cookies=None):
+	soup = None
+	text = extractHtmlText(url, cookies)
+	if text:
+		soup = BeautifulSoup(text, 'html5lib')
+	return soup
+
+
 class EpubConverter:
+	'''
+	need to add tags to epub
+	'''
 	def __init__(self, data, input_file, title="", author="", image_file=None):
 		self.data = read(data, input_file)
 		self.path = ConfigIO.get("ebook_dir")
+		if not title and not input_file:
+			print(f"Failed converting without title and input file")
+			return
 		self.title = title if title else Path(input_file).stem
-		self.author = author
+		self.title = chinese_converter.to_simplified(self.title)
+		self.author = chinese_converter.to_simplified(author) if author else ""
 		self.image = get_image(image_file)
 		self.ebook = epub.EpubBook()
 		write(self.data, os.path.join(self.path, self.title + ".txt"))
+		self.convert()
 
 	def getTags(self):
 		pass
@@ -211,7 +255,6 @@ class EpubConverter:
 		self.ebook.add_author(self.author)
 		self.ebook.set_cover(file_name="cover.jpg", content=self.image)
 
-		self.data = clean_txt(read(self.data))
 		indices = split_txt(self.data)
 		chaps = self.get_chaps(indices)
 
@@ -231,4 +274,126 @@ class EpubConverter:
 
 		# write to the file
 		epub.write_epub(os.path.join(self.path, self.title + ".epub"), self.ebook, {})
-		print(f"converting done. number of chapters: {len(indices) - 1}")
+		print(f"Success: {self.title} converting done. number of chapters: {len(indices)}")
+
+
+class ScrapeHtml:
+	def __init__(self, url):
+		self.split_utl = urlsplit(url)
+		self.parsers = {}
+		self.set_parsers()
+		self.info = {}
+		self.set_intro()
+		print(self.info.__str__())
+		self.set_pages()
+		self.download()
+
+	def get_parser(self, key):
+		return self.parsers.get(key, "")
+
+	def get_info(self, key):
+		return self.info.get(key, "")
+
+	def set_parsers(self):
+		# Read parsers for the current website in to dict.
+		for p in ConfigIO.get("web_parsers"):
+			if p.get("base", "") == self.split_utl.netloc:
+				for key, value in p.items():
+					self.parsers[key] = value
+		if not self.parsers:
+			exit(f"Failed parsing {self.split_utl.geturl()}, {self.split_utl.netloc} is not in config.json -> parsers.")
+		print(self.parsers.__str__())
+
+	def set_intro(self):
+		# Find the book number. Put together book intro page url.
+		temp = re.match(self.get_parser("book_no"), self.split_utl.path)
+		if not temp:
+			print(f"Failed parsing book number from {self.split_utl.geturl()}")
+			return
+		self.info["book_no"] = temp.group(1)
+		self.info["intro"] = self.get_parser("intro") % self.get_info("book_no")
+
+		# Head contains title, author and hopefully tags.
+		if not self.get_info("intro"):
+			print(f"Failed getting intro url from {self.split_utl.geturl()}")
+			return
+		soup = extractHtmlSoup(self.get_info("intro"))
+		if not soup:
+			print(f"Failed fetching {self.get_info('intro')}")
+			return
+		element = soup.find(attrs=self.get_parser('head'))
+		if element:
+			self.info["head"] = element.text
+			txt = re.match(self.get_parser("title"), self.get_info('head'))
+			if txt:
+				self.info["title"] = txt.group(1)
+				self.info["author"] = txt.group(2)
+				self.info["tag"] = txt.group(3)
+		element = soup.find(attrs=self.get_parser('des'))
+		if element:
+			self.info["des"] = "\n".join(element.stripped_strings)
+		element = soup.find(self.get_parser('img'))
+		if element:
+			self.info["img"] = self.split_utl._replace(path=element.get("src")).geturl()
+
+	def set_head(self):
+		# Book title must be available. Try getting it by tag h1, title
+		if self.get_info("title"):
+			return
+		url = self.get_parser("page") % (self.get_info("book_no"), self.get_parser('first_page'))
+		soup = extractHtmlSoup(url)
+		if not soup:
+			print(f"Failed fetching {url}")
+			return
+		element = soup.find('h1')
+		element = element if element else soup.find('title')
+		if element:
+			head = element.text
+			txt = re.match(self.get_parser("title"), head)
+			if txt:
+				self.info["title"] = txt.group(1)
+				self.info["author"] = txt.group(2)
+				self.info["tag"] = txt.group(3)
+
+	def set_pages(self):
+		temp = 0
+		soup = extractHtmlSoup(self.split_utl.geturl())
+		if soup:
+			element = soup.find(string=self.get_parser("last_page"))
+			if element:
+				href = element.parent.get("href")
+				if href:
+					last = re.match(self.get_parser("last_page_no"), href)
+					if last:
+						temp = int(last.group(1))
+		if temp <= 1:
+			return
+		self.info["pages"] = [n for n in range(self.parsers.get("first_page", 1), temp + 1)]
+
+	def download(self):
+		if not self.get_info("pages"):
+			print(f"Download failed: getting no pages from {self.split_utl.geturl()}")
+			return
+		self.set_head()
+		if not self.get_info("title"):
+			print(f"Download failed: getting no book title from {self.split_utl.geturl()}")
+			return
+		text = "\n".join(
+			[self.get_info("title"), self.get_info("author"), self.get_info("tag"), self.get_info("des")]) + "\n"
+		for page in self.get_info("pages"):
+			url = self.get_parser("page") % (self.get_info("book_no"), page)
+			soup = extractHtmlSoup(url)
+			temp = f"Failed to download page {page}\n"
+			if soup:
+				element = soup.find(id=self.get_parser("content"))
+				if element:
+					temp = "\n".join(element.stripped_strings)
+			text += temp
+		text = clean_txt(text)
+		text = re.sub(self.get_parser('watermark'), '', text)
+		if len(text) < 10000:
+			print(f"Failed downloading {self.get_info('title')}. Article is too short: {len(text)}")
+			return
+		print(f"Successfully downloaded {self.get_info('title')}. Word count: {len(text)}")
+		EpubConverter(text, None, self.get_info('title'), self.get_info('author'), self.get_info('img'))
+		return True

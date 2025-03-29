@@ -11,3 +11,6 @@ ebooklib~=0.18
 requests~=2.32.3
 validators~=0.34.0
 pandas~=2.2.3
+beautifulsoup4
+html5lib
+fake-useragent
