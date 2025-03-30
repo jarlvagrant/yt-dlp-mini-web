@@ -196,25 +196,20 @@ def extractHtmlSoup(url: str, cookies=None):
 
 
 class EpubConverter:
-	'''
-	need to add tags to epub
-	'''
-	def __init__(self, data, input_file, title="", author="", image_file=None):
+	def __init__(self, data, input_file, title="", author="", tags = "", des="", image_file=None):
 		self.data = read(data, input_file)
 		self.path = ConfigIO.get("ebook_dir")
 		if not title and not input_file:
 			print(f"Failed converting without title and input file")
 			return
 		self.title = title if title else Path(input_file).stem
-		self.title = chinese_converter.to_simplified(self.title)
-		self.author = chinese_converter.to_simplified(author) if author else ""
+		self.author = author
+		self.tags = tags if tags else ""
+		self.des = des if des else ""
 		self.image = get_image(image_file)
 		self.ebook = epub.EpubBook()
 		write(self.data, os.path.join(self.path, self.title + ".txt"))
 		self.convert()
-
-	def getTags(self):
-		pass
 
 	def get_chaps(self, indices):
 		chaps = ()
@@ -254,13 +249,27 @@ class EpubConverter:
 		self.ebook.set_language("zh")
 		self.ebook.add_author(self.author)
 		self.ebook.set_cover(file_name="cover.jpg", content=self.image)
+		if self.tags:
+			for t in re.split(" |,|，|。|\.|;｜；|\||｜|\\\|/|、", self.tags):
+				self.ebook.add_metadata('DC', 'subject', t)
+		if self.des:
+			self.ebook.add_metadata('DC', 'description', self.des)
 
+		# create add intro page
+		intro = epub.EpubHtml(title="简介",file_name="intro.xhtml", lang="zh")
+		intro.content = ("<h2>%s</h2><h3>%s</h3><h3>%s</h3><p>%s</p>" % (self.title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
+		self.ebook.toc.append(epub.Link("intro.xhtml", "简介", "intro"))
+		self.ebook.add_item(intro)
+
+		# create and add chapters
 		indices = split_txt(self.data)
 		chaps = self.get_chaps(indices)
 
+		# add default NCX and Nav file
 		self.ebook.add_item(epub.EpubNcx())
 		self.ebook.add_item(epub.EpubNav())
 
+		# define CSS style
 		style = '''p {text-indent: 0.5em;}'''
 		default_css = epub.EpubItem(
 			uid="style_default",
@@ -270,7 +279,7 @@ class EpubConverter:
 		self.ebook.add_item(default_css)
 
 		# basic spine
-		self.ebook.spine = ["nav", *chaps]
+		self.ebook.spine = ["nav", intro, *chaps]
 
 		# write to the file
 		epub.write_epub(os.path.join(self.path, self.title + ".epub"), self.ebook, {})
@@ -328,7 +337,7 @@ class ScrapeHtml:
 			if txt:
 				self.info["title"] = txt.group(1)
 				self.info["author"] = txt.group(2)
-				self.info["tag"] = txt.group(3)
+				self.info["tags"] = txt.group(3)
 		element = soup.find(attrs=self.get_parser('des'))
 		if element:
 			self.info["des"] = "\n".join(element.stripped_strings)
@@ -337,7 +346,7 @@ class ScrapeHtml:
 			self.info["img"] = self.split_utl._replace(path=element.get("src")).geturl()
 
 	def set_head(self):
-		# Book title must be available. Try getting it by tag h1, title
+		# Book title must be available. Try getting it by tags h1, title, only run this when failed parsing intro page
 		if self.get_info("title"):
 			return
 		url = self.get_parser("page") % (self.get_info("book_no"), self.get_parser('first_page'))
@@ -353,7 +362,7 @@ class ScrapeHtml:
 			if txt:
 				self.info["title"] = txt.group(1)
 				self.info["author"] = txt.group(2)
-				self.info["tag"] = txt.group(3)
+				self.info["tags"] = txt.group(3)
 
 	def set_pages(self):
 		temp = 0
@@ -371,15 +380,21 @@ class ScrapeHtml:
 		self.info["pages"] = [n for n in range(self.parsers.get("first_page", 1), temp + 1)]
 
 	def download(self):
-		if not self.get_info("pages"):
-			print(f"Download failed: getting no pages from {self.split_utl.geturl()}")
-			return
 		self.set_head()
 		if not self.get_info("title"):
 			print(f"Download failed: getting no book title from {self.split_utl.geturl()}")
 			return
-		text = "\n".join(
-			[self.get_info("title"), self.get_info("author"), self.get_info("tag"), self.get_info("des")]) + "\n"
+		for x in ["title", "author", "tags", "des"]:
+			self.info[x] = clean_txt(self.get_info(x))
+		if not self.get_info("tags") and self.get_info("des"):
+			temp = re.search('内容标签[:：](.*)', self.get_info("des"))
+			if temp:
+				self.info["tags"] = temp.group(1)
+
+		if not self.get_info("pages"):
+			print(f"Download failed: getting no pages from {self.split_utl.geturl()}")
+			return
+		text = ""
 		for page in self.get_info("pages"):
 			url = self.get_parser("page") % (self.get_info("book_no"), page)
 			soup = extractHtmlSoup(url)
@@ -395,5 +410,6 @@ class ScrapeHtml:
 			print(f"Failed downloading {self.get_info('title')}. Article is too short: {len(text)}")
 			return
 		print(f"Successfully downloaded {self.get_info('title')}. Word count: {len(text)}")
-		EpubConverter(text, None, self.get_info('title'), self.get_info('author'), self.get_info('img'))
+		EpubConverter(text, None, self.get_info('title'), self.get_info('author'), self.get_info("tags"),
+		              self.get_info("des"), self.get_info('img'))
 		return True
