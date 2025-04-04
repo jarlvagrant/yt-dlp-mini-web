@@ -117,11 +117,14 @@ nav ul li a, nav ul li span, header .action {
 }
 
 label.gray {
+  font-style: italic;
+  font-size: 0.85em;
   color:  #43595d;
 }
 
 label.radio {
   font-weight: normal;
+  font-size: 0.85em;
 }
 
 div.right {
@@ -180,7 +183,7 @@ input[type=submit] {
 }
 .progress:before {
   content: attr(data-label);
-  font-size: 0.8em;
+  font-size: 0.85em;
   position: absolute;
   text-align: center;
   top: 5px;

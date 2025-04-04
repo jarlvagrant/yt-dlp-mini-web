@@ -18,62 +18,104 @@
 <form action="javascript:addElement()" method="post">
     <label for="youtube_url">Youtube Url</label>
     <input type="url" name="youtube_url" value="" id="youtube_url" required>
-    <label>Select Video/Audio format to be extracted.</label>
+    <div class="right">
+        <label class="gray" for="playlist_start">Playlist item start</label>
+        <input type="number" name="playlist_start" value="" id="playlist_start">
+        <label class="gray" for="playlist_end">end</label>
+        <input type="number" name="playlist_end" value="" id="playlist_end">
+    </div>
+    <label class="gray">Select Video/Audio format to be extracted.</label>
     <div>
         <input type="radio" id="video" name="output_type" value="video" checked/>
         <label class="radio" for="video">Video</label>
         <input type="radio" id="audio" name="output_type" value="audio"/>
         <label class="radio" for="audio">Audio</label>
     </div>
+    <label class="gray">Select Video resolution.</label>
+    <div>
+        <input type="radio" id="high" name="resolution" value="1080"/>
+        <label class="radio" for="high">1080</label>
+        <input type="radio" id="mid" name="resolution" value="720" checked/>
+        <label class="radio" for="mid">720</label>
+        <input type="radio" id="low" name="resolution" value="480"/>
+        <label class="radio" for="low">480</label>
+    </div>
     <input type="submit" value="Submit">
 </form>
 <div id="info">
 </div>
 <script>
+    let urls = []
+
     function uuidv4() {
         return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
             (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
         );
     }
-    function hook(uuid, progress, bar) {
+
+    function remove(array, item) {
+        let ind = array.indexOf(item)
+        if (ind !== -1) {
+            array.splice(ind, 1)
+        }
+    }
+
+    function hook(uuid, progress, bar, url) {
         const prog_url = "/progress_data/" + uuid;
         const id = setInterval(frame, 500);
         const json_data = {
-            "url": document.getElementById("youtube_url").value,
-            "format": document.getElementById("video").checked
+            "url": url,
+            "format": document.getElementById("video").checked,
+            "resolution": document.querySelector('input[name="resolution"]:checked').value,
+            "start": document.getElementById("playlist_start").value,
+            "end": document.getElementById("playlist_end").value
         };
 
         function frame() {
-            $.getJSON(prog_url, json_data, function(res){
+            $.getJSON(prog_url, json_data, function (res) {
                 if (res.cur != null) {
                     bar.style.width = res.cur + "%";
                 }
                 if (res.error) {
-                    progress.setAttribute("data-label", res.title + " downloading error: " + res.error);
+                    progress.setAttribute("data-label", res.label + " " + res.status + ": " + res.error);
                     progress.setAttribute("style", "color:red");
+                    remove(urls, url)
                     clearInterval(id);
-                } else if (res.cur === 100) {
-                    progress.setAttribute("data-label", res.label + " downloading completed!");
+                } else if (res.status === "completed") {
+                    bar.style.width = "100%"
+                    progress.setAttribute("data-label", res.label + " " + res.status + "!");
+                    remove(urls, url)
                     clearInterval(id);
                 } else {
-                    progress.setAttribute("data-label", res.label + " downloading " + res.cur + "%");
+                    progress.setAttribute("data-label", res.label + " " + res.status + ": " + res.cur + "%");
                 }
             });
         }
     }
+
     function addElement() {
-        if (document.getElementById("youtube_url").value === "") {
+        let url = document.getElementById("youtube_url").value
+        if (url === "") {
             return;
         }
+        if (urls.includes(url)) {
+            urls.forEach(function (entry) {
+                console.log(entry);
+            });
+            window.alert(url + " is in downloading list!")
+            return
+        }
+        urls.push(url)
+
         let uuid = uuidv4();
         console.log(uuid);
         const progress = document.createElement("div");
-        progress.className="progress";
+        progress.className = "progress";
         progress.setAttribute("id", "prog" + uuid);
         progress.setAttribute("data-label", "Initializing...")
 
         const bar = document.createElement("span");
-        bar.className="value";
+        bar.className = "value";
         bar.setAttribute("id", uuid);
         bar.setAttribute("style", "width:0%");
 
@@ -82,7 +124,7 @@
         document.getElementById("info").appendChild(progress);
         document.getElementById("info").appendChild(document.createElement("br"));
 
-        hook(uuid, progress, bar);
+        hook(uuid, progress, bar, url);
     }
 </script>
 {% endblock %}
