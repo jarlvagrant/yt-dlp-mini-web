@@ -85,7 +85,6 @@ class Downloader:
 		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 			for url in self.urls:
 				if url:
-					self.title = f"{self.title} ({self.completed + 1}/{len(self.urls)})"
 					self.error = ydl.download(url)
 					self.completed += 1
 			self.status = "completed"
@@ -121,7 +120,8 @@ class ProgressData(View):
 				downloader.error = ex.__str__()
 		if downloader.error or downloader.cur == 100:
 			started_progress.pop(uuid, None)
-		data = jsonify(label=downloader.title, status=downloader.status, cur=downloader.cur, error=downloader.error)
+		data = jsonify(label=f"{downloader.title} ({downloader.completed + 1}/{len(downloader.urls)})",
+		               status=downloader.status, cur=downloader.cur, error=downloader.error)
 		print(data.get_json())
 		return data
 
