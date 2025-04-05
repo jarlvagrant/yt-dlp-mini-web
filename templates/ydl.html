@@ -79,11 +79,10 @@
                 if (res.error) {
                     progress.setAttribute("data-label", res.label + " " + res.status + ": " + res.error);
                     progress.setAttribute("style", "color:red");
-                    remove(urls, url)
-                    clearInterval(id);
                 } else if (res.status === "completed") {
                     bar.style.width = "100%"
                     progress.setAttribute("data-label", res.label + " " + res.status + "!");
+                    progress.setAttribute("style", "color:black");
                     remove(urls, url)
                     clearInterval(id);
                 } else {
