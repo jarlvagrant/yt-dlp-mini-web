@@ -8,6 +8,7 @@ from Utils import ConfigIO
 
 started_progress = {}
 
+
 class UpdateDir(View):
 	"""
 	Using a POST method to retrieve the javascript id, value pair for one of the
@@ -29,8 +30,9 @@ class UpdateDir(View):
 		return Response(response=response, status=200)
 
 
-output_formats = {'video': "bestvideo[ext=mp4][height<=720][vcodec!~=av01]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
-                  'audio': 'bestaudio[ext=m4a][acodec!~=opus]/best'}
+output_formats = {
+	'video': "bestvideo[ext=mp4][height<=720][vcodec!~=av01]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
+	'audio': 'bestaudio[ext=m4a][acodec!~=opus]/best'}
 
 
 class YoutubeDownloader(View):
@@ -39,21 +41,21 @@ class YoutubeDownloader(View):
 
 
 class Downloader:
-	def __init__(self, uuid, url, ext, output_dir, start = 0, end = 0):
+	def __init__(self, uuid, url, ext, output_dir, start=0, end=0):
 		self.uuid = uuid
 		self.urls = [url]
 		self.ext = ext
 		self.output_dir = output_dir
-		self.start = min(start, end) -1
+		self.start = min(start, end) - 1
 		self.end = max(start, end)
 		self.cur = 0
 		self.error = None
-		self.title = ""
+		self.title = f"Fetching info from {url}..."
 		self.completed = 0
-		self.status = "downloading"
+		self.status = ""
 
 	def set_info(self):
-		with yt_dlp.YoutubeDL({'extract_flat' : "in_playlist"}) as ydl:
+		with yt_dlp.YoutubeDL({'extract_flat': "in_playlist"}) as ydl:
 			info_dict = ydl.extract_info(self.urls[0], download=False)
 			self.title = info_dict.get('title', '')
 			# playlist_count = info_dict.get('playlist_count', 0)
@@ -69,17 +71,19 @@ class Downloader:
 
 	# need work!
 	def my_hook(self, d):
-		self.status = d['status']
-		if d['status'] == 'finished':
-			self.status = "postprocessing"
+		self.status = d['_default_template']
 		self.cur = round(d["_percent"], 1)
 		print("\nCurrent progress %s percent." % self.cur)
+
+	def my_postprocessor_hook(self, d):
+		self.status = d['_default_template']
 
 	def download_video(self):
 		print("requested format %s; output directory %s." % (self.ext, self.output_dir))
 		ydl_opts = {
 			"outtmpl": self.output_dir + "/%(title)s.%(ext)s",
 			'progress_hooks': [self.my_hook],
+			'postprocessor_hooks': [self.my_postprocessor_hook],
 			'format': self.ext,
 		}
 		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -120,9 +124,7 @@ class ProgressData(View):
 				downloader.error = ex.__str__()
 		if downloader.error or downloader.cur == 100:
 			started_progress.pop(uuid, None)
-		data = jsonify(label=f"{downloader.title} ({downloader.completed + 1}/{len(downloader.urls)})",
-		               status=downloader.status, cur=downloader.cur, error=downloader.error)
+		label = f"{downloader.title} ({downloader.completed}/{len(downloader.urls)})" if downloader.title else ""
+		data = jsonify(label=label, status=downloader.status, cur=downloader.cur, error=downloader.error)
 		print(data.get_json())
 		return data
-
-

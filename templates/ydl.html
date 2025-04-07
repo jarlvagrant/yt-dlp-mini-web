@@ -70,23 +70,29 @@
             "start": document.getElementById("playlist_start").value,
             "end": document.getElementById("playlist_end").value
         };
-
+        let log = ""
         function frame() {
             $.getJSON(prog_url, json_data, function (res) {
-                if (res.cur != null) {
-                    bar.style.width = res.cur + "%";
-                }
+                let label = res.label + " " + res.status
                 if (res.error) {
-                    progress.setAttribute("data-label", res.label + " " + res.status + ": " + res.error);
+                    label = label + ": " + res.error
                     progress.setAttribute("style", "color:red");
-                } else if (res.status === "completed") {
-                    bar.style.width = "100%"
-                    progress.setAttribute("data-label", res.label + " " + res.status + "!");
-                    progress.setAttribute("style", "color:black");
-                    remove(urls, url)
-                    clearInterval(id);
+                    log += res.error + "\n";
                 } else {
-                    progress.setAttribute("data-label", res.label + " " + res.status + ": " + res.cur + "%");
+                    progress.setAttribute("style", "color:black");
+                }
+                progress.setAttribute("data-label", label);
+                if (res.status === "completed") {
+                    bar.style.width = "100%"
+                    if (log.length !== 0) {
+                        log = label + " with error:\n" + log;
+                        window.alert(log)
+                    }
+                    remove(urls, url);
+                    clearInterval(id);
+                    return
+                } else {
+                    bar.style.width = res.cur + "%";
                 }
             });
         }
