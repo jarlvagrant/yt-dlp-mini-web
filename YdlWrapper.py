@@ -27,12 +27,12 @@ class UpdateDir(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		new_path = request.form.get("dir")
 		dir_type = request.form.get("id")
-		status = 201
+		code = 201
 		if os.path.isdir(new_path):
-			status = 200
+			code = 200
 			ConfigIO.set(dir_type, new_path)
-		print(f"Updating directory: {dir_type} = {new_path}, code = {status}")
-		return Response(status=status)
+		print(f"Updating directory: {dir_type} = {new_path}, code = {code}")
+		return  jsonify(code=code)
 
 
 class Task:

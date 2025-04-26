@@ -7,7 +7,7 @@
             console.log(event.target);
             $.post("/update_dir", {id:event.target.id, dir:event.target.value}, function(response) {
                 event.target.className = event.target.className.replace(" warn", "")
-                if (response.status === 200) {
+                if (response.code === 200) {
                     console.log("Updating dir: " + event.target.id + " = " + event.target.value);
                 } else {
                     event.target.className = event.target.className + " warn"
