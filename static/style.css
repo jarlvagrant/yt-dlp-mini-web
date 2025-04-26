@@ -168,7 +168,8 @@ input[type=submit] {
 }
 
 .button {
-  padding: 0.25em 1em;
+  margin-top: 0.2em;
+  min-width: 10em;
   text-align: center;
   text-decoration: none;
   display: inline-block;
