@@ -28,16 +28,11 @@ class ProcessEbook(View):
 		return Response()
 
 
-def read(txt=None, filepath=None):
-	'''
-	read text or read from a file. if both text and filepath are given, append text to file text.
-	'''
+def read_binary_file(filepath=None):
 	output = ""
-	if txt is not None:
-		output = clean_txt(txt)
 	if filepath is not None:
 		with open(filepath, 'rb') as f:
-			output = clean_txt(f.read()) + output
+			output = f.read()
 			f.close()
 	return output
 
@@ -47,6 +42,9 @@ def clean_txt(txt):
 	Run transformations on the text to put it into
 	consistent state.
 	'''
+	if not txt:
+		return ''
+
 	if isinstance(txt, bytes):
 		# Only handle GBK chars for now. Download Cadet to detect other encodings.
 		try:
@@ -110,50 +108,29 @@ def clean_ascii_chars(txt, charlist=None):
 	return pat.sub(empty, txt)
 
 
-def write(text: str, path):
+def write_text_file(text: str, path):
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(text)
 		f.close()
 
-
-def split_txt(txt):
-	'''
-	Split text by the most common chapter regex
-	'''
-	r = r"(?m)^第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷]"
-	temp_indices = [c.start() for c in re.finditer(r, txt)]
-	temp_indices.append(len(txt))
-
-	# When chapters are too large or in case the chapter regex was not found, so the content was a big chunk,
-	# split the text by newlines and form chapters of chars from 6000 to 8000.
-	temp_cur = 0
-	indices = []
-	for t in temp_indices:
-		if t - temp_cur < 8000:
-			indices.append(t)
-		else:
-			indices.append(t)
-			line_cur = temp_cur
-			line_indices = [c.start() for c in re.finditer(r'\n', txt[temp_cur:t])]
-			for l in line_indices:
-				if l - line_cur > 6000:
-					line_cur = l
-					indices.append(l)
-					if t - line_cur < 8000:
-						indices.append(t)
-						break
-		temp_cur = t
-	return indices
+# make a list of possible chap format, start from the strict regex.
+# chap_regex = r"(?m)☆?、?第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷]"
+chap_regex_list = [r"(?m)^[\s\r\n\.☆、—-]*第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷][\s\r\n\.☆、—-].{0,30}", # 第一章 飞雪连天
+                   r"(?m)^.{0,10}第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷].{0,30}", # 1. 第一章 飞雪连天
+                   r"(?m)^[\s\r\n\.☆、—-]*\d+[\s\r\n\.☆、—-].{0,30}", # 1. 飞雪连天
+                   r"(?m)^.{0,10}\d+.{0,30}", # 正文 1. 飞雪连天
+                   r"(?m)^[\s\r\n\.☆、—-]*[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}", # ☆ 卷一 飞雪连天
+                   r"(?m)^.{0,10}[第章集卷][0123456789一二三四五六七八九十零〇百千两]+.{0,30}", # ☆一。 卷一 飞雪连天
+                   r"(?m)^[\s\r\n\.☆、-—]*.{0,30}"] # ☆ 飞雪连天
 
 
 def get_image(url):
 	image = None
 	if url:
 		if os.path.isfile(url):
-			with open(url, 'rb') as f:
-				image = f.read()
+			image = read_binary_file(url)
 		else:
-			extractHtmlImage(url)
+			image = extractHtmlImage(url)
 	return image
 
 
@@ -174,7 +151,7 @@ def extractHtml(url: str, cookies=None):
 def extractHtmlImage(url: str):
 	image = None
 	response = extractHtml(url)
-	if response:
+	if response.status_code == 200:
 		image = response.content
 	return image
 
@@ -182,7 +159,7 @@ def extractHtmlImage(url: str):
 def extractHtmlText(url: str, cookies=None):
 	text = ""
 	response = extractHtml(url, cookies)
-	if response:
+	if response.status_code == 200:
 		text = unquote(response.text)
 	return text
 
@@ -196,28 +173,48 @@ def extractHtmlSoup(url: str, cookies=None):
 
 
 class EpubConverter:
-	def __init__(self, data, input_file, title="", author="", tags = "", des="", image_file=None):
-		self.data = read(data, input_file)
+	def __init__(self, data, title, author="", tags = "", des="", image_url=None):
+		self.data = clean_txt(data)
 		self.path = ConfigIO.get("ebook_dir")
-		if not title and not input_file:
-			print(f"Failed converting without title and input file")
-			return
-		self.title = title if title else Path(input_file).stem
-		self.author = author
+		self.title = title
+		self.author = author if author else ""
 		self.tags = tags if tags else ""
 		self.des = des if des else ""
-		self.image = get_image(image_file)
+		self.image = get_image(image_url)
+		# we only need this when txt content is no local
+		# write_text_file("\n".join([f"《{self.title}》作者：{self.author}", f"内容标签：{self.tags}", self.des, self.data]),
+		#                 os.path.join(self.path, self.title + ".txt"))
+		self.verify()
 		self.ebook = epub.EpubBook()
-		write(self.data, os.path.join(self.path, self.title + ".txt"))
-		self.convert()
+
+	def verify(self):
+		if not self.data:
+			return
+
+		if not self.title or not self.author:
+			temp = re.search(r"(?s)[.]?([^\n《》「」『』【】\/]*).?\n?作者[：:]([^\n》」』】\(]*)", self.data)
+			if temp:
+				self.title = temp.group(1) if not self.title else self.title
+				self.author = temp.group(2) if not self.author else self.author
+		if not self.title:
+			self.title = self.data.split("\n", 1)[0]
+			if "http" in self.title:
+				self.title = ""
+				temp = self.data.split("\n", 2)
+				if len(temp) > 2:
+					self.title = temp[1]
+		if not self.tags:
+			temp = re.search('内容标签[:：](.*)', self.data)
+			if temp:
+				self.tags = temp.group(1)
 
 	def get_chaps(self, indices):
 		chaps = ()
 		start = 0
 		for count, index in enumerate(indices):
-			temp = self.data[start: index]
 			if start == index:
 				continue
+			temp = self.data[start: index].lstrip()
 			start = index
 
 			if "\n" in temp:
@@ -237,9 +234,40 @@ class EpubConverter:
 			self.ebook.add_item(chap)
 		return chaps
 
+	def split_txt(self):
+		'''
+		Split text by the most common chapter regex
+		'''
+		temp_indices = []
+		for regex in chap_regex_list:
+			temp_indices = [c.start() for c in re.finditer(regex, self.data)]
+			if len(temp_indices) > len(self.data)/6000: # chapter words count, use 6000 as maximum limit
+				break
+		temp_indices.append(len(self.data))
+
+		# When chapters are too large or in case the chapter regex was not found, so the content was a big chunk,
+		# split the text by newlines and form chapters of chars > 4000
+		x = 0
+		indices = []
+		for t_index in temp_indices:
+			# print(f"start {x} end {t} diff {t - x} {txt[x_cur:x+15]}")
+			if t_index - x > 8000:
+				y = x
+				line_indices = [c.start() for c in re.finditer(r'\n', self.data[x:t_index])]
+				for l_index in line_indices:
+					if x + l_index - y > 4000:
+						indices.append(x + l_index)
+						y = x + l_index
+			indices.append(t_index)
+			x = t_index
+		return indices
+
 	def convert(self):
-		if not self.data or len(self.data) == 0:
+		if not self.data:
 			print("Error: the resource txt file has no content")
+			exit()
+		if not self.title:
+			print("Error: can not convert txt file with no title")
 			exit()
 		print(f"initiating txt to epub converting of {self.title}, author: {self.author} length {len(self.data)}")
 
@@ -250,19 +278,20 @@ class EpubConverter:
 		self.ebook.add_author(self.author)
 		self.ebook.set_cover(file_name="cover.jpg", content=self.image)
 		if self.tags:
-			for t in re.split(" |,|，|。|\.|;｜；|\||｜|\\\|/|、", self.tags):
+			for t in re.split(r" |,|，|。|\.|;｜；|\||｜|\\\|/|、", self.tags):
 				self.ebook.add_metadata('DC', 'subject', t)
 		if self.des:
 			self.ebook.add_metadata('DC', 'description', self.des)
 
 		# create add intro page
 		intro = epub.EpubHtml(title="简介",file_name="intro.xhtml", lang="zh")
-		intro.content = ("<h2>%s</h2><h3>%s</h3><h3>%s</h3><p>%s</p>" % (self.title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
+		intro.content = ("<h2>%s</h2><h3>作者：%s</h3><h3>内容标签：%s</h3><p>%s</p>" %
+		                 (self.title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
 		self.ebook.toc.append(epub.Link("intro.xhtml", "简介", "intro"))
 		self.ebook.add_item(intro)
 
 		# create and add chapters
-		indices = split_txt(self.data)
+		indices = self.split_txt()
 		chaps = self.get_chaps(indices)
 
 		# add default NCX and Nav file
@@ -410,6 +439,18 @@ class ScrapeHtml:
 			print(f"Failed downloading {self.get_info('title')}. Article is too short: {len(text)}")
 			return
 		print(f"Successfully downloaded {self.get_info('title')}. Word count: {len(text)}")
-		EpubConverter(text, None, self.get_info('title'), self.get_info('author'), self.get_info("tags"),
+		EpubConverter(text, self.get_info('title'), self.get_info('author'), self.get_info("tags"),
 		              self.get_info("des"), self.get_info('img'))
 		return True
+
+
+class LocalTxtToEpub:
+	def __init__(self, file, image_url=None):
+		self.file = file
+		self.image_url = image_url
+
+	def process(self):
+		data = read_binary_file(self.file)
+		if not data:
+			return
+		EpubConverter(data=data, title="", image_url=self.image_url).convert()
