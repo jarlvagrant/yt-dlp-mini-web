@@ -105,7 +105,6 @@ nav ul li a, nav ul li span, header .action {
 }
 
 .content form {
-  margin: 1em 0;
   display: flex;
   flex-direction: column;
 }
@@ -131,15 +130,15 @@ div.right {
   margin-top: 0em;
   margin-bottom: 0em;
   margin-left: auto;
-  margin-bottom: 0em;
 }
 
-.content input, .content textarea {
+.content input {
   margin-left: 1em;
   margin-bottom: 1em;
 }
 
 .content textarea {
+  margin-left: 1em;
   min-height: 12em;
   resize: vertical;
 }
@@ -152,6 +151,10 @@ input.gray {
   margin-left: 0.2em;
   margin-bottom: 0.2em;
   background: #dee8e9 ;
+}
+
+input.table {
+  margin-bottom: 0;
 }
 
 .error {
@@ -197,3 +200,53 @@ input[type=submit] {
   height: 100%;
 }
 
+.collapsible {
+  background-color: #eee;
+  color: #377ba8;
+  cursor: pointer;
+  padding: 8px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.active, .collapsible:hover {
+  background-color: #ccc;
+}
+
+.collapsible:after {
+  content: '\002B';
+  color: white;
+  font-weight: bold;
+  float: right;
+  margin-left: 5px;
+}
+
+.active:after {
+  content: "\2212";
+}
+
+.collapsible_content {
+  padding: 8px;
+  display: none;
+  overflow: hidden;
+  background-color: #eee;
+}
+
+table {
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #ddd;
+  padding: 4px 12px;
+  text-align: left;
+  color: #377ba8;
+}
+
+tr:nth-child(odd){background-color: #f2f2f2;}
+
+/*tr:hover {background-color: #ddd;}*/

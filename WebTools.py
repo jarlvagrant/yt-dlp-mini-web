@@ -2,7 +2,7 @@ from flask import Flask, render_template
 from flask.views import View
 from werkzeug.serving import WSGIRequestHandler
 
-from EbookSender import EBook
+from EbookSender import EBook, EbookInputs, EbookUpload, EbookConvert, EbookCover
 from YdlWrapper import UpdateDir, YoutubeDownloader, Progress, TaskMaker
 
 
@@ -23,6 +23,10 @@ def main():
 	app.add_url_rule("/youtube", view_func=YoutubeDownloader.as_view("youtube"))
 	app.add_url_rule("/progress", view_func=Progress.as_view("progress"))
 	app.add_url_rule("/ebook", view_func=EBook.as_view("ebook"))
+	app.add_url_rule("/ebk_inputs", view_func=EbookInputs.as_view("ebk_inputs"))
+	app.add_url_rule("/ebk_upload", view_func=EbookUpload.as_view("ebk_upload"))
+	app.add_url_rule("/ebk_cover", view_func=EbookCover.as_view("ebk_cover"))
+	app.add_url_rule("/ebk_convert", view_func=EbookConvert.as_view("ebk_convert"))
 	app.run(debug=True, host='0.0.0.0', port=8008, request_handler=MyRequestHandler)
 
 

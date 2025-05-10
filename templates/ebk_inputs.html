@@ -1,0 +1,129 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% if txt_files|length > 0 %}
+{% block header %}
+<div>
+    <h3 style="display:inline-block">{% block title %}Resources and Info:{% endblock %}</h3>
+    <button type="button" id="toggle_collapse_all" style="float: right; margin-top: 1em; "
+            onclick="toggle_collapse_all()">+
+    </button>
+    <button type="button" id="convert_all" style="float: right; margin-top: 1em; margin-right: 2em"
+            onclick="convert_all()">Convert all
+    </button>
+</div>
+{% endblock %}
+<div id="files_to_convert" style="padding-left: 12px">
+    {% for file in txt_files %}
+    <button type="button" class="collapsible" onclick="toggle_collapse(this)">{{ file }}</button>
+    <div class="collapsible_content">
+        <label class="gray">Optional meta info:</label>
+        <table>
+            <tr>
+                <td><input class="table" name="title" value="" id="title{{ file }}" placeholder="title"></td>
+                <td><input class="table" name="author" value="" id="author{{ file }}" placeholder="author"></td>
+                <td><input class="table" name="tags" value="" id="tags{{ file }}"
+                           placeholder="tags e.g. 科幻 都市 喜剧"></td>
+            </tr>
+            <tr>
+                <td><input class="table" name="des" value="" id="des{{ file }}" placeholder="description"></td>
+                <td><input class="table" name="cover_url" value="" id="cover_url{{ file }}"
+                           onfocusout="send_cover_url(this)"
+                           placeholder="http://cover_url"></td>
+                <td>
+                    <form id="form{{ file }}" enctype="multipart/form-data" method="post">
+                        <input class="table" type="file" id="cover{{ file }}" name="cover" accept="image/*"
+                               onchange="send_cover(this)"/>
+                    </form>
+                </td>
+            </tr>
+            <tr>
+                <td><img id="image{{ file }}" src="#" height="168" alt=""/></td>
+                <td colspan="3"><textarea id="info{{ file }}" cols="60" width=100% style="verflow-y: scroll;">章节预览：</textarea>
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+<script>
+    function toggle_collapse(input) {
+        input.classList.toggle('active');
+        let content = input.nextElementSibling;
+        if (content.style.display === "block") {
+            content.style.display = "none";
+        } else {
+            content.style.display = "block";
+        }
+    }
+
+    function toggle_collapse_all() {
+        let sign = document.getElementById('toggle_collapse_all')
+        if (sign.innerText === "+") {
+            sign.innerText = "-";
+        } else {
+            sign.innerText = "+";
+        }
+        let coll = document.getElementsByClassName("collapsible");
+        for (let i = 0; i < coll.length; i++) {
+            toggle_collapse(coll[i]);
+        }
+    }
+
+    function send_cover_url(e) {
+        let image_id = e.id.replace("cover_url", "image")
+        let image = document.getElementById(image_id)
+        image.src = e.value;
+        let json_data = {
+            title: image_id,
+            img_url: e.value,
+        }
+        $.post("/ebk_cover", json_data, function (response) {
+            if (response.code === 200) {
+                console.log("Got cover: " + image_id);
+                image.alt = image_id;
+            }
+        })
+    }
+
+    async function send_cover(e) {
+        let image_id = e.id.replace("cover", "image")
+        let image = document.getElementById(image_id)
+        let file = e.files[0]
+        image.src = URL.createObjectURL(file);
+
+        let formData = new FormData();
+        formData.append("image", e.files[0]);
+        formData.append("title", image_id)
+        console.log(formData);
+        const response = await fetch("/ebk_cover", {method: "POST", body: formData})
+        console.log(response);
+        if (response.status === 200) {
+            console.log("Got cover: " + image_id);
+            image.alt = image_id;
+        }
+    }
+
+    function convert_all() {
+        let items = document.getElementsByClassName("collapsible");
+        let data = {};
+        for (let i = 0; i < items.length; i++) {
+            let part = items[i].innerText;
+            console.log(part);
+            data = {
+                'file': part,
+                'title': document.getElementById('title' + part).value,
+                'author': document.getElementById('author' + part).value,
+                'tags': document.getElementById('tags' + part).value,
+                'des': document.getElementById('des' + part).value,
+                'image': document.getElementById('image' + part).alt
+            };
+            console.log(data);
+            $.post("/ebk_convert", data, function (response) {
+                if (response.code === 200) {
+                    console.log("Done convert " + part);
+                    document.getElementById('info' + part).innerHTML = ("章节预览：\n" + response.info).replace("\n", "&#13;&#10;");
+                }
+            });
+        }
+    }
+</script>

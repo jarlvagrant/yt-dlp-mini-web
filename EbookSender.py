@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from pathlib import Path
@@ -7,10 +8,14 @@ import chinese_converter
 import requests
 from bs4 import BeautifulSoup
 from ebooklib import epub
-from flask import typing as ft, render_template, Response, request
+from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash
 from flask.views import View
+from werkzeug.utils import secure_filename, redirect
 
 from Utils import ConfigIO, UA
+
+
+book_dict = {}
 
 
 class EBook(View):
@@ -26,6 +31,88 @@ class ProcessEbook(View):
 		converter = EpubConverter(url)
 		converter.convert()
 		return Response()
+
+class EbookInputs(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		new_books = request.form.getlist('files[]')
+		print(new_books)
+		return render_template("ebk_inputs.html", txt_files=new_books)
+
+
+class EbookUpload(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		path = ConfigIO.get("ebook_dir")
+		if not os.path.isdir(path):
+			flash("Invalid upload path: {path}")
+		else:
+			files = request.files.getlist("docs")
+			names = []
+			for f in files:
+				# filename = secure_filename(file.filename)
+				names.append(f.filename)
+				f.save(os.path.join(ConfigIO.get("ebook_dir"), f.filename))
+			print("Uploaded files: {names}".format(names=names))
+		return redirect(url_for("ebook"))
+
+
+class EbookCover(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		title = request.form.get('title', 'unknown') + ".jpg"
+		url = request.form.get('img_url', "")
+		file = request.files.get('image')
+
+		if url:
+			print(f"Save image: {url} to {title}")
+			image = get_image(url)
+			if image:
+				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
+					f.write(image)
+				return jsonify(code=200)
+			else:
+				return jsonify(code=500)
+		elif file:
+			print(f"Save image: {file.filename} to {title}")
+			image = file.read()
+			if image:
+				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
+					f.write(image)
+					return Response(status=200)
+			else:
+				return Response(status=500)
+
+
+
+class EbookConvert(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		file_name = request.form.get('file', '')
+		title = request.form.get('title', '')
+		author = request.form.get('author', '')
+		tags = request.form.get('tags', '')
+		des = request.form.get('des', '')
+		image_name= request.form.get('image', '')
+		if not file_name:
+			return jsonify(code=500, messages="No input text file")
+		file_path = os.path.join(ConfigIO.get("ebook_dir"), file_name)
+		if not os.path.isfile(file_path):
+			return jsonify(code=500, messages="Input text file not found")
+		data = clean_txt(read_binary_file(file_path))
+		if not title:
+			title = Path(file_path).stem
+		image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
+		if not os.path.isfile(image_path):
+			image_path = None
+		print(f"Converting {file_path}, title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+		converter = EpubConverter(data, title, author, tags, des, image_path)
+		converter.convert()
+		return jsonify(code=200, info=converter.info)
 
 
 def read_binary_file(filepath=None):
@@ -174,7 +261,7 @@ def extractHtmlSoup(url: str, cookies=None):
 
 class EpubConverter:
 	def __init__(self, data, title, author="", tags = "", des="", image_url=None):
-		self.data = clean_txt(data)
+		self.data = data
 		self.path = ConfigIO.get("ebook_dir")
 		self.title = title
 		self.author = author if author else ""
@@ -185,6 +272,7 @@ class EpubConverter:
 		# write_text_file("\n".join([f"《{self.title}》作者：{self.author}", f"内容标签：{self.tags}", self.des, self.data]),
 		#                 os.path.join(self.path, self.title + ".txt"))
 		self.verify()
+		self.info = ""
 		self.ebook = epub.EpubBook()
 
 	def verify(self):
@@ -226,7 +314,8 @@ class EpubConverter:
 			else:
 				header = temp
 				content = ""
-			print(f"processing index: {count} title: {header}, word count: {len(temp)}")
+			print(f"Chapter {count}: title={header}, size={len(temp)}")
+			self.info += f"Chapter {count}: title={header}, size={len(temp)}\n"
 			chap = epub.EpubHtml(title=header, file_name="%05d.xhtml" % count, lang="zh")
 			chap.content = ("<h3>%s</h3><p>%s</p>" % (header, content))
 			chaps = chaps + (chap,)

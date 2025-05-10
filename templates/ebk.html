@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block header %}
-<h2>{% block title %}- Download EBook and send to Kindle:{% endblock %}</h2>
+<h2>{% block title %}- Convert EBook and send to Kindle:{% endblock %}</h2>
 <div class="right">
     <div>
         <label class="gray" for="ebook_dir">Save ebook to: </label>
@@ -11,26 +11,45 @@
 {% endblock %}
 
 {% block content %}
-<form action="javascript:processEbook()" method="post">
-    <div>
-        <label for="ebook_url">EBook</label>
-        <input type="url" name="ebook_url" value="" id="ebook_url" placeholder="http://ebook_url" style="min-width: 30em;" required>
-        <button>Choose text file</button>
-    </div>
-    <div>
-        <label for="author">Author</label>
-        <input name="author" value="" id="author" placeholder="optional">
-    </div>
-    <div>
-        <label for="cover">Cover</label>
-        <input name="cover" value="" id="cover" placeholder="http://cover_url" style="min-width: 30em;">
-        <button>Choose image</button>
-    </div>
-    <input type="submit" value="Submit">
-</form>
+<table>
+    <tr>
+        <form action="javascript:upload_ebooks()" enctype="multipart/form-data" method="post">
+            <td>Local files: <input class="table" type="file" id="docs" name="docs" accept=".txt" multiple/></td>
+            <td><button style="min-width: 8rem;">Upload</button></td>
+        </form>
+    </tr>
+    <tr>
+        <td>From urls: <input class="table" name="ebook_urls" id="ebook_urls" style="min-width: 30rem;" placeholder="http://ebook_url_1 http://ebook_url_2"></td>
+        <td><button onclick="extract_text(this)" style="min-width: 8rem;">Extract</button></td>
+    </tr>
+</table>
+<div id="inputs"></div>
 <script>
-    function processEbook() {
+    function upload_ebooks(e) {
+        let files = document.getElementById('docs').files;
+        if (files.length > 0) {
+            let names = []
+            let formData = new FormData();
+            for (let file of files) {
+                names.push(file['name']);
+                formData.append('docs', file);
+            }
+            console.log(names)
+            $("#inputs").load("/ebk_inputs", {"files[]": names});
+            fetch("/ebk_upload", {method:"POST", body: formData});
+        }
+    }
+
+    function extract_text(e) {
+        console.log("Extracting");
+    }
+
+    function process_ebooks() {
         console.log("processing ebook ");
+        let files = document.getElementById('docs').files;
+        let formdata = new FormData();
+        formdata.append("file", files[0]);
+        fetch("/Users/xxm/Downloads", {method: "POST", body: formdata});
     }
 </script>
 {% endblock %}
