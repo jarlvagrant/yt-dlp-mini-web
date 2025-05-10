@@ -77,10 +77,9 @@
             title: image_id,
             img_url: e.value,
         }
-        $.post("/ebk_cover", json_data, function (response) {
+        $.post("/ebk_cover_url", json_data, function (response) {
             if (response.code === 200) {
                 console.log("Got cover: " + image_id);
-                image.alt = image_id;
             }
         })
     }
@@ -94,12 +93,9 @@
         let formData = new FormData();
         formData.append("image", e.files[0]);
         formData.append("title", image_id)
-        console.log(formData);
         const response = await fetch("/ebk_cover", {method: "POST", body: formData})
-        console.log(response);
         if (response.status === 200) {
             console.log("Got cover: " + image_id);
-            image.alt = image_id;
         }
     }
 
@@ -108,14 +104,13 @@
         let data = {};
         for (let i = 0; i < items.length; i++) {
             let part = items[i].innerText;
-            console.log(part);
             data = {
                 'file': part,
                 'title': document.getElementById('title' + part).value,
                 'author': document.getElementById('author' + part).value,
                 'tags': document.getElementById('tags' + part).value,
                 'des': document.getElementById('des' + part).value,
-                'image': document.getElementById('image' + part).alt
+                'image': 'image' + part
             };
             console.log(data);
             $.post("/ebk_convert", data, function (response) {

@@ -64,9 +64,23 @@ class EbookCover(View):
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		title = request.form.get('title', 'unknown') + ".jpg"
-		url = request.form.get('img_url', "")
 		file = request.files.get('image')
+		if file:
+			print(f"Save image: {file.filename} to {title}")
+			image = file.read()
+			if image:
+				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
+					f.write(image)
+					return Response(status=200)
+		return Response(status=500)
 
+
+class EbookCoverUrl(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		title = request.form.get('title', 'unknown') + ".jpg"
+		url = request.form.get('img_url')
 		if url:
 			print(f"Save image: {url} to {title}")
 			image = get_image(url)
@@ -74,18 +88,7 @@ class EbookCover(View):
 				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
 					f.write(image)
 				return jsonify(code=200)
-			else:
-				return jsonify(code=500)
-		elif file:
-			print(f"Save image: {file.filename} to {title}")
-			image = file.read()
-			if image:
-				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
-					f.write(image)
-					return Response(status=200)
-			else:
-				return Response(status=500)
-
+		return jsonify(code=500)
 
 
 class EbookConvert(View):
@@ -97,7 +100,7 @@ class EbookConvert(View):
 		author = request.form.get('author', '')
 		tags = request.form.get('tags', '')
 		des = request.form.get('des', '')
-		image_name= request.form.get('image', '')
+		image_name= request.form.get('image', '') + ".jpg"
 		if not file_name:
 			return jsonify(code=500, messages="No input text file")
 		file_path = os.path.join(ConfigIO.get("ebook_dir"), file_name)
@@ -110,7 +113,7 @@ class EbookConvert(View):
 		if not os.path.isfile(image_path):
 			image_path = None
 		print(f"Converting {file_path}, title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
-		converter = EpubConverter(data, title, author, tags, des, image_path)
+		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des), image_path)
 		converter.convert()
 		return jsonify(code=200, info=converter.info)
 
@@ -207,8 +210,8 @@ chap_regex_list = [r"(?m)^[\s\r\n\.☆、—-]*第[0123456789一二三四五六�
                    r"(?m)^[\s\r\n\.☆、—-]*\d+[\s\r\n\.☆、—-].{0,30}", # 1. 飞雪连天
                    r"(?m)^.{0,10}\d+.{0,30}", # 正文 1. 飞雪连天
                    r"(?m)^[\s\r\n\.☆、—-]*[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}", # ☆ 卷一 飞雪连天
-                   r"(?m)^.{0,10}[第章集卷][0123456789一二三四五六七八九十零〇百千两]+.{0,30}", # ☆一。 卷一 飞雪连天
-                   r"(?m)^[\s\r\n\.☆、-—]*.{0,30}"] # ☆ 飞雪连天
+                   r"(?m)^.{0,10}[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}", # ☆一。 卷一 飞雪连天
+                   r"(?m)^[\s\r\n\.]*[☆、—-].{0,30}"] # ☆ 飞雪连天
 
 
 def get_image(url):
@@ -327,28 +330,27 @@ class EpubConverter:
 		'''
 		Split text by the most common chapter regex
 		'''
-		temp_indices = []
-		for regex in chap_regex_list:
-			temp_indices = [c.start() for c in re.finditer(regex, self.data)]
-			if len(temp_indices) > len(self.data)/6000: # chapter words count, use 6000 as maximum limit
-				break
-		temp_indices.append(len(self.data))
-
-		# When chapters are too large or in case the chapter regex was not found, so the content was a big chunk,
-		# split the text by newlines and form chapters of chars > 4000
-		x = 0
+		start = 0
+		end = len(self.data)
 		indices = []
-		for t_index in temp_indices:
-			# print(f"start {x} end {t} diff {t - x} {txt[x_cur:x+15]}")
-			if t_index - x > 8000:
-				y = x
-				line_indices = [c.start() for c in re.finditer(r'\n', self.data[x:t_index])]
-				for l_index in line_indices:
-					if x + l_index - y > 4000:
-						indices.append(x + l_index)
-						y = x + l_index
-			indices.append(t_index)
-			x = t_index
+		while end - start > 8000:
+			diff = -1
+			for regex in chap_regex_list:
+				found = re.search(regex, self.data[start: start + 8000])
+				if found:
+					diff = found.start()
+					indices.append(start + diff)
+					start += found.end()
+					break
+			if diff == -1: # no chap with known regex found smaller than 8000 words
+				diff = self.data[start:start+8000].rfind("\n") # find the last occurrence of line breaker
+				if diff == -1:
+					start += 8000
+				else:
+					start += diff
+				indices.append(start)
+		indices.append(end)
+		print(indices)
 		return indices
 
 	def convert(self):
@@ -539,7 +541,7 @@ class LocalTxtToEpub:
 		self.image_url = image_url
 
 	def process(self):
-		data = read_binary_file(self.file)
+		data = clean_txt(read_binary_file(self.file))
 		if not data:
 			return
 		EpubConverter(data=data, title="", image_url=self.image_url).convert()
