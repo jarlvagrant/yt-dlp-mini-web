@@ -18,6 +18,9 @@ h1, h2, h3, h4, h5, h6 {
 
 a {
   color: #377ba8;
+  white-space: nowrap ;
+  font-size: 0.85em;
+  width: fit-content;
 }
 
 hr {

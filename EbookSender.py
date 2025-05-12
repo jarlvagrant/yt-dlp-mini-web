@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from pathlib import Path
@@ -8,9 +7,9 @@ import chinese_converter
 import requests
 from bs4 import BeautifulSoup
 from ebooklib import epub
-from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash
+from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash, send_from_directory
 from flask.views import View
-from werkzeug.utils import secure_filename, redirect
+from werkzeug.utils import redirect
 
 from Utils import ConfigIO, UA
 
@@ -91,6 +90,15 @@ class EbookCoverUrl(View):
 		return jsonify(code=500)
 
 
+class EbookLink(View):
+	methods = ['GET']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		print(f"Uploading request {request.url}")
+		filename = request.args.get('filename')
+		return send_from_directory(ConfigIO.get("ebook_dir"), path=filename)
+
+
 class EbookConvert(View):
 	methods = ['POST']
 
@@ -114,8 +122,8 @@ class EbookConvert(View):
 			image_path = None
 		print(f"Converting {file_path}, title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
 		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des), image_path)
-		converter.convert()
-		return jsonify(code=200, info=converter.info)
+		output = converter.convert()
+		return jsonify(code=200, info=converter.info, output=output)
 
 
 def read_binary_file(filepath=None):
@@ -356,10 +364,10 @@ class EpubConverter:
 	def convert(self):
 		if not self.data:
 			print("Error: the resource txt file has no content")
-			exit()
+			return ""
 		if not self.title:
 			print("Error: can not convert txt file with no title")
-			exit()
+			return ""
 		print(f"initiating txt to epub converting of {self.title}, author: {self.author} length {len(self.data)}")
 
 		# set metadata
@@ -404,6 +412,7 @@ class EpubConverter:
 		# write to the file
 		epub.write_epub(os.path.join(self.path, self.title + ".epub"), self.ebook, {})
 		print(f"Success: {self.title} converting done. number of chapters: {len(indices)}")
+		return self.title + ".epub"
 
 
 class ScrapeHtml:
