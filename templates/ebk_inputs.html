@@ -7,7 +7,7 @@
             onclick="toggle_collapse_all()">+
     </button>
     <button type="button" id="send_all" style="float: right; margin-top: 1em; margin-right: 2em"
-                         onclick="send_all()">Send all
+                         onclick="send_all()">Send by email
     </button>
     <button type="button" id="convert_all" style="float: right; margin-top: 1em; margin-right: 2em"
             onclick="convert_all()">Convert all
@@ -38,7 +38,7 @@
                                onchange="send_cover(this)"/>
                     </form>
                 </td>
-                <td><a id="epub{{ file }}" download="">EPUB</a></td>
+                <td><a class="epub" id="epub{{ file }}" download="">EPUB</a></td>
             </tr>
             <tr>
                 <td><img id="image{{ file }}" src="#" height="168" alt=""/></td>
@@ -123,6 +123,7 @@
                     console.log("Done convert " + part);
                     if (response.output && response.output.length > 0) {
                         document.getElementById("epub" + part).href = "ebk_link?filename=" + response.output;
+                        document.getElementById("epub" + part).value = response.output;
                     }
                     document.getElementById('info' + part).innerHTML = ("章节预览：\n" + response.info).replace("\n", "&#13;&#10;");
                 }
@@ -131,6 +132,16 @@
     }
 
     function send_all() {
-
+        let items = document.getElementsByClassName("epub");
+        let names = []
+        for (let i=0; i < items.length; i++) {
+            names.push(items[i].value);
+        }
+        console.log(names);
+        $.post("ebk_email", {files: names}, function (response) {
+            if (response.code === 200) {
+                console.log("Sent email!");
+            }
+        })
     }
 </script>

@@ -15,6 +15,15 @@
                 }
             })
         }
+
+        function update_config(event) {
+            console.log(event.target);
+            $.post("/update_config", {key:event.target.id, value:event.target.value}, function(response) {
+                if (response.code === 200) {
+                    console.log("Updated " + event.target.id + " = " + event.target.value)
+                }
+            })
+        }
     </script>
 </head>
 <title>{% block title %}{% endblock %} - XXM Toolbox</title>

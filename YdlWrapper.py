@@ -15,26 +15,6 @@ output_formats = {'video': "bestvideo[ext=mp4][height<=720][vcodec!~=av01]+besta
                   'audio': 'bestaudio[ext=m4a][acodec!~=opus]/best'}
 
 
-class UpdateDir(View):
-	"""
-	Using a POST method to retrieve the javascript id, value pair for one of the
-	archive path(video, audio, book...)
-	Response is the validated retrieved path. If this path is not a valid directory,
-	send the previous path as response.
-	"""
-	methods = ['POST']
-
-	def dispatch_request(self) -> ft.ResponseReturnValue:
-		new_path = request.form.get("dir")
-		dir_type = request.form.get("id")
-		code = 201
-		if os.path.isdir(new_path):
-			code = 200
-			ConfigIO.set(dir_type, new_path)
-		print(f"Updating directory: {dir_type} = {new_path}, code = {code}")
-		return  jsonify(code=code)
-
-
 class Task:
 	def __init__(self, url, ext, output_dir, playlist_items):
 		self.url = url

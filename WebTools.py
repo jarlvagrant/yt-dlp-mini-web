@@ -2,8 +2,9 @@ from flask import Flask, render_template
 from flask.views import View
 from werkzeug.serving import WSGIRequestHandler
 
-from EbookSender import EBook, EbookInputs, EbookUpload, EbookConvert, EbookCover, EbookCoverUrl, EbookLink
-from YdlWrapper import UpdateDir, YoutubeDownloader, Progress, TaskMaker
+from Commons import UpdateDir, UpdateConfig, ListFolders
+from EbookSender import EBook, EbookInputs, EbookUpload, EbookConvert, EbookCover, EbookCoverUrl, EbookLink, EbookEmail
+from YdlWrapper import YoutubeDownloader, Progress, TaskMaker
 
 
 class Index(View):
@@ -19,7 +20,9 @@ def main():
 	app.secret_key = 'mimamuahilachocobooooo'
 	app.add_url_rule("/", view_func=Index.as_view("index"))
 	app.add_url_rule("/update_dir", methods=['POST'], view_func=UpdateDir.as_view("update_dir"))
-	app.add_url_rule("/task_maker", methods=['POST'], view_func=TaskMaker.as_view("task_maker"))
+	app.add_url_rule("/update_config", methods=['POST'], view_func=UpdateConfig.as_view("update_config"))
+	app.add_url_rule("/ ", methods=['GET'], view_func=ListFolders.as_view("list_folders"))
+	app.add_url_rule("/task_maker", view_func=TaskMaker.as_view("task_maker"))
 	app.add_url_rule("/youtube", view_func=YoutubeDownloader.as_view("youtube"))
 	app.add_url_rule("/progress", view_func=Progress.as_view("progress"))
 	app.add_url_rule("/ebook", view_func=EBook.as_view("ebook"))
@@ -29,6 +32,7 @@ def main():
 	app.add_url_rule("/ebk_cover_url", view_func=EbookCoverUrl.as_view("ebk_cover_url"))
 	app.add_url_rule("/ebk_convert", view_func=EbookConvert.as_view("ebk_convert"))
 	app.add_url_rule("/ebk_link", view_func=EbookLink.as_view("ebk_link"))
+	app.add_url_rule("/ebk_email", view_func=EbookEmail.as_view("ebk_email"))
 	app.run(debug=True, host='0.0.0.0', port=8008, request_handler=MyRequestHandler)
 
 

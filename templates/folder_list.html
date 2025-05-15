@@ -1,0 +1,17 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% if folders|length > 0 %}
+{% block header %}
+<div id="popup" class="overlay">
+  <h3 style="display:inline-block">{% block title %}{{ cur_dir }}</h3>
+</div>
+{% endblock %}
+<ur data-label="{{ cur_folder }}">
+  {% for folder in folders %}
+  <li onclick="select_folder(this)" ondblclick="open_folder(this)">{{ folder }}</li>
+  {% endfor %}
+</ur>
+<script>
+  function open_folder(obj) {
+    console.log(obj);
+  }
+</script>

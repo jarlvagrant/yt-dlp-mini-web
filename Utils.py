@@ -1,5 +1,8 @@
 import datetime
 import json
+import os
+import smtplib
+from email.message import EmailMessage
 
 import pandas as pd
 from fake_useragent import UserAgent
@@ -37,11 +40,19 @@ class JsonIO:
 			self.dict = json.load(f)
 			f.close()
 
-	def get(self, key):
-		return self.dict.get(key, None)
+	def get(self, key, subkey=None):
+		if not subkey:
+			return self.dict.get(key, None)
+		if self.dict.get(key, None):
+			return self.dict.get(key, None).get(subkey, None)
+		return None
 
-	def set(self, key, value):
-		self.dict[key] = value
+	def set(self, key, value, subkey=None):
+		if not subkey:
+			self.dict[key] = value
+		else:
+			if self.dict.get(key, None):
+				self.dict[key][subkey] = value
 		with open(self.file, 'w', encoding='utf-8') as f:
 			json.dump(self.dict, f, ensure_ascii=False, indent=4, )
 			f.close()
@@ -102,3 +113,33 @@ class CsvIO:
 
 ConfigIO = JsonIO(config_file)
 BooksIO = CsvIO(book_csv_file, book_csv_columns)
+
+class SendEmail:
+	def __init__(self, file, filename):
+		self.file = file
+		self.filename = filename
+
+	def send(self):
+		if not self.filename or not os.path.isfile(self.file):
+			print(f"Invalid file name: {self.filename} or file path: {self.file}")
+			return False
+
+		email = ConfigIO.get("email")
+		if not email or None in [email.get(key, None) for key in ["from" , "to" , "host", "port", "secret"]]:
+			print(f"Invalid email config in config.json: please check keys: from, to, host, port, secret")
+			return False
+		msg = EmailMessage()
+		msg['Subject'] = self.filename
+		msg['From'] = email.get("from")
+		msg['To'] = email.get("to")
+		with open(self.file, 'rb') as fp:
+			data = fp.read()
+		msg.add_attachment(data, maintype='application', subtype='octet-stream', filename=self.filename)
+		# Add error and failure check
+		with smtplib.SMTP(email.get("host"), email.get("port")) as smtp:
+			smtp.starttls()
+			smtp.login(email.get("from"), email.get("secret"))
+			smtp.send_message(msg=msg)
+			smtp.quit()
+		print(f"Emailed {self.filename} to {email.get('to')}")
+		return True

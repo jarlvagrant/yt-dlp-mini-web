@@ -11,15 +11,14 @@ from flask import typing as ft, render_template, Response, request, jsonify, url
 from flask.views import View
 from werkzeug.utils import redirect
 
-from Utils import ConfigIO, UA
-
+from Utils import ConfigIO, UA, SendEmail
 
 book_dict = {}
 
 
 class EBook(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("ebk.html", ebook_dir=ConfigIO.get("ebook_dir"))
+		return render_template("ebk.html", ebook_dir=ConfigIO.get("ebook_dir"), recipient=ConfigIO.get("email", "to"))
 
 
 class ProcessEbook(View):
@@ -97,6 +96,17 @@ class EbookLink(View):
 		print(f"Uploading request {request.url}")
 		filename = request.args.get('filename')
 		return send_from_directory(ConfigIO.get("ebook_dir"), path=filename)
+
+
+class EbookEmail(View):
+	methods = ['POST']
+
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		items = request.form.getlist('files[]')
+		print(f"Sending email with attachment {items}")
+		for item in items:
+			SendEmail(os.path.join(ConfigIO.get("ebook_dir"), item), filename=item).send()
+		return jsonify(code=200)
 
 
 class EbookConvert(View):
