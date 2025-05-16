@@ -3,7 +3,7 @@ import os
 from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash, send_from_directory
 from flask.views import View
 
-from Utils import ConfigIO
+from Utils import ConfigIO, getSubfolders, getPossibleFolders
 
 
 class UpdateConfig(View):
@@ -39,12 +39,12 @@ class UpdateDir(View):
 		return  jsonify(code=code)
 
 
-class ListFolders(View):
+class ListSubfolders(View):
 	methods = ['POST']
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		cur_dir = request.form.get("cur_dir")
-		folders = os.scandir(ConfigIO.get(cur_dir))
 		print(cur_dir)
+		folders = getPossibleFolders() + getSubfolders(cur_dir)
 		print(folders)
-		return render_template("folder_list.html", cur_dir=cur_dir, folders=folders)
+		return jsonify(cur_dir=cur_dir, folders=folders)

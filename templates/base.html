@@ -24,6 +24,26 @@
                 }
             })
         }
+
+        function folder_selected(e) {
+            let select = e.target;
+            console.log(select.value);
+            $.post('/list_subfolders', {"cur_dir": select.value}, function(response) {
+                let cur_dir = response['cur_dir'];
+                let folders = response['folders'];
+                console.log(folders);
+                select.previousElementSibling.value = cur_dir;
+                console.log(select.previousElementSibling);
+                $.post("/update_dir", {id: select.previousElementSibling.id, dir: cur_dir});
+                let options = select.options;
+                for (let i = options.length - 1; i >= 0; i--) {
+                    select.remove(i);
+                }
+                for (let folder of folders) {
+                    select.options.add(new Option(folder, folder));
+                }
+            });
+        }
     </script>
 </head>
 <title>{% block title %}{% endblock %} - XXM Toolbox</title>

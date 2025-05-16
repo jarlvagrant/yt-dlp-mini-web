@@ -1,19 +1,19 @@
 {% extends 'base.html' %}
 
 {% block header %}
-<h2 style="padding-bottom: 15px">{% block title %}- Convert EBook and send to Kindle:{% endblock %}</h2>
+<h2>{% block title %}- Convert EBook and send to Kindle:{% endblock %}</h2>
 <div class="right">
     <div id="epub_folder">
-        <label class="gray" for="ebook_dir" >Save epub to: </label>
-        <input class="gray" id="ebook_dir" name="ebook_dir" value="{{ ebook_dir }}" onfocusout="validate_path(event)"/>
-        <select class="gray" id="epub_select_folder" style="width:26px" onchange="folder_selected(event)()">
-            <option value="volvo">Volvo</option>
-            <option value="abc">abc</option>
-            <option value="{{ epub_dir }}">{{ epub_dir }}</option>
+        <label class="gray" for="ebook_dir" style="margin-right: 5px">Save to: </label>
+        <input class="gray" id="ebook_dir" value="{{ ebook_dir }}" onfocusout="validate_path(event)"/>
+        <select class="gray" style="width:26px" onchange="folder_selected(event)">
+            {% for folder in folders %}
+            <option value={{ folder }}>{{ folder }}</option>
+            {% endfor %}
         </select>
     </div>
     <div>
-        <label class="gray" for="email to" style="padding-right: 31px" >Email to: </label>
+        <label class="gray" for="email to">Email to: </label>
         <input class="gray" id="email to" value="{{ recipient }}" type="email" onfocusout="update_config(event)"/>
     </div>
 </div>
@@ -34,10 +34,6 @@
 </table>
 <div id="inputs"></div>
 <script>
-    function folder_selected(e) {
-        let selected = e.target.value;
-        console.log(selected);
-    }
 
     function upload_ebooks(e) {
         let files = document.getElementById('docs').files;

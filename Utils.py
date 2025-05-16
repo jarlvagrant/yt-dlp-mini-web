@@ -3,6 +3,7 @@ import json
 import os
 import smtplib
 from email.message import EmailMessage
+from pathlib import Path
 
 import pandas as pd
 from fake_useragent import UserAgent
@@ -113,6 +114,36 @@ class CsvIO:
 
 ConfigIO = JsonIO(config_file)
 BooksIO = CsvIO(book_csv_file, book_csv_columns)
+
+
+def getInitialFolder(dir_type):
+	folder = ConfigIO.get(dir_type)
+	if not folder or not os.path.isdir(dir_type):
+		folder = Path.home()
+	return folder
+
+
+def getPossibleFolders(dir_type=None):
+	folder = ConfigIO.get(dir_type)
+	guess = [os.sep, os.getcwd(), Path.home()]
+	if folder and os.path.isdir(folder):
+		guess.append(folder)
+	res = set()
+	for g in guess:
+		if os.path.isdir(g):
+			res.add(os.path.abspath(g))
+	return sorted(res)
+
+
+def getSubfolders(folder):
+	res = set()
+	if not folder or not os.path.isdir(folder):
+		folder = Path.home()
+	for f in os.scandir(folder):
+		if f.is_dir():
+			res.add(f.path)
+	return sorted(res)
+
 
 class SendEmail:
 	def __init__(self, file, filename):

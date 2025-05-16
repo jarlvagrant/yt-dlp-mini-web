@@ -11,14 +11,15 @@ from flask import typing as ft, render_template, Response, request, jsonify, url
 from flask.views import View
 from werkzeug.utils import redirect
 
-from Utils import ConfigIO, UA, SendEmail
+from Utils import ConfigIO, UA, SendEmail, getPossibleFolders, getInitialFolder
 
 book_dict = {}
 
 
 class EBook(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("ebk.html", ebook_dir=ConfigIO.get("ebook_dir"), recipient=ConfigIO.get("email", "to"))
+		return render_template("ebk.html", ebook_dir=getInitialFolder("ebook_dir"),
+		                       recipient=ConfigIO.get("email", "to"), folders=getPossibleFolders("ebook_dir"))
 
 
 class ProcessEbook(View):

@@ -2,7 +2,7 @@ from flask import Flask, render_template
 from flask.views import View
 from werkzeug.serving import WSGIRequestHandler
 
-from Commons import UpdateDir, UpdateConfig, ListFolders
+from Commons import UpdateDir, UpdateConfig, ListSubfolders
 from EbookSender import EBook, EbookInputs, EbookUpload, EbookConvert, EbookCover, EbookCoverUrl, EbookLink, EbookEmail
 from YdlWrapper import YoutubeDownloader, Progress, TaskMaker
 
@@ -21,7 +21,7 @@ def main():
 	app.add_url_rule("/", view_func=Index.as_view("index"))
 	app.add_url_rule("/update_dir", methods=['POST'], view_func=UpdateDir.as_view("update_dir"))
 	app.add_url_rule("/update_config", methods=['POST'], view_func=UpdateConfig.as_view("update_config"))
-	app.add_url_rule("/ ", methods=['GET'], view_func=ListFolders.as_view("list_folders"))
+	app.add_url_rule("/list_subfolders", methods=['POST'], view_func=ListSubfolders.as_view("list_subfolders"))
 	app.add_url_rule("/task_maker", view_func=TaskMaker.as_view("task_maker"))
 	app.add_url_rule("/youtube", view_func=YoutubeDownloader.as_view("youtube"))
 	app.add_url_rule("/progress", view_func=Progress.as_view("progress"))

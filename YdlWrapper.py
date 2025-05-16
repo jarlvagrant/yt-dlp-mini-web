@@ -1,13 +1,13 @@
 import os
 import re
 from multiprocessing import Process, Queue
+from pathlib import Path
 
 import yt_dlp
 from flask import typing as ft, request, render_template, jsonify, Response
 from flask.views import View
 
-from Utils import ConfigIO
-
+from Utils import ConfigIO, getInitialFolder, getPossibleFolders
 
 tasks = []
 
@@ -144,7 +144,8 @@ class Progress(View):
 
 class YoutubeDownloader(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("ydl.html", video_dir=ConfigIO.get("video_dir"), audio_dir=ConfigIO.get("audio_dir"))
+		return render_template("ydl.html", video_dir=getInitialFolder("video_dir"), audio_dir=ConfigIO.get("audio_dir"),
+		                       video_folders=getPossibleFolders("video_dir"), audio_folders=getPossibleFolders("audio_dir"))
 
 
 class Downloader:
