@@ -118,31 +118,34 @@ BooksIO = CsvIO(book_csv_file, book_csv_columns)
 
 def getInitialFolder(dir_type):
 	folder = ConfigIO.get(dir_type)
-	if not folder or not os.path.isdir(dir_type):
-		folder = Path.home()
+	if not folder or not os.path.isdir(folder):
+		folder = Path.home().__str__()
 	return folder
 
 
-def getPossibleFolders(dir_type=None):
-	folder = ConfigIO.get(dir_type)
-	guess = [os.sep, os.getcwd(), Path.home()]
-	if folder and os.path.isdir(folder):
-		guess.append(folder)
-	res = set()
-	for g in guess:
-		if os.path.isdir(g):
-			res.add(os.path.abspath(g))
-	return sorted(res)
+def getInitialSubfolders(cur_dir):
+	res = [cur_dir]
+	parent_dir = cur_dir
+	if cur_dir and os.path.exists(cur_dir):
+		parent_dir = Path(cur_dir).parent
+	for f in (os.sep, parent_dir.__str__(), Path.home().__str__()):
+		if f not in res:
+			res.append(f)
+	return res
 
 
-def getSubfolders(folder):
-	res = set()
-	if not folder or not os.path.isdir(folder):
-		folder = Path.home()
-	for f in os.scandir(folder):
-		if f.is_dir():
-			res.add(f.path)
-	return sorted(res)
+def getSubfolders(cur_dir):
+	res = getInitialSubfolders(cur_dir)
+	temp = []
+	if cur_dir and os.path.isdir(cur_dir):
+		for f in os.scandir(cur_dir):
+			if f.is_dir() and not f.name.startswith('.'):
+				temp.append(f.path)
+	temp = sorted(temp)
+	for f in temp:
+		if f not in res:
+			res.append(f)
+	return res
 
 
 class SendEmail:

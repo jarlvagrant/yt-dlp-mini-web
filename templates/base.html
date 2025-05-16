@@ -9,6 +9,19 @@
                 event.target.className = event.target.className.replace(" warn", "")
                 if (response.code === 200) {
                     console.log("Updating dir: " + event.target.id + " = " + event.target.value);
+                    let select = event.target.nextElementSibling;
+                    select.value = event.target.value;
+                    $.post('/list_subfolders', {"cur_dir": event.target.value}, function(response) {
+                        let folders = response['folders'];
+                        console.log(folders);
+                        let options = select.options;
+                        for (let i = options.length - 1; i >= 0; i--) {
+                            select.remove(i);
+                        }
+                        for (let folder of folders) {
+                            select.options.add(new Option(folder, folder));
+                        }
+                    });
                 } else {
                     event.target.className = event.target.className + " warn"
                     alert("Failed updating dir: " + event.target.id + " = " + event.target.value + " code = " + response.code)

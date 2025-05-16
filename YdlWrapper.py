@@ -7,7 +7,7 @@ import yt_dlp
 from flask import typing as ft, request, render_template, jsonify, Response
 from flask.views import View
 
-from Utils import ConfigIO, getInitialFolder, getPossibleFolders
+from Utils import ConfigIO, getInitialFolder, getInitialSubfolders
 
 tasks = []
 
@@ -144,8 +144,12 @@ class Progress(View):
 
 class YoutubeDownloader(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		return render_template("ydl.html", video_dir=getInitialFolder("video_dir"), audio_dir=ConfigIO.get("audio_dir"),
-		                       video_folders=getPossibleFolders("video_dir"), audio_folders=getPossibleFolders("audio_dir"))
+		video_dir = getInitialFolder("video_dir")
+		video_subfolders = getInitialSubfolders(video_dir)
+		audio_dir = getInitialFolder("audio_dir")
+		audio_subfolders = getInitialSubfolders(audio_dir)
+		return render_template("ydl.html", video_dir=video_dir, audio_dir=audio_dir,
+		                       video_folders=video_subfolders, audio_folders=audio_subfolders)
 
 
 class Downloader:
