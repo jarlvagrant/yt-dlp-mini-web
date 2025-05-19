@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from time import sleep
 from urllib.parse import urlsplit, unquote
 
 import chinese_converter
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 from ebooklib import epub
 from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash, send_from_directory
 from flask.views import View
+from requests import HTTPError
 from werkzeug.utils import redirect
 
 from Utils import ConfigIO, UA, SendEmail, getInitialSubfolders, getInitialFolder
@@ -23,15 +25,6 @@ class EBook(View):
 		return render_template("ebk.html", ebook_dir=folder, folders=subfolders,
 		                       recipient=ConfigIO.get("email", "to"))
 
-
-class ProcessEbook(View):
-	methods = ['POST']
-
-	def dispatch_request(self) -> ft.ResponseReturnValue:
-		url = request.form.get('url')
-		converter = EpubConverter(url)
-		converter.convert()
-		return Response()
 
 class EbookInputs(View):
 	methods = ['POST']
@@ -121,7 +114,7 @@ class EbookConvert(View):
 		author = request.form.get('author', '')
 		tags = request.form.get('tags', '')
 		des = request.form.get('des', '')
-		image_name= request.form.get('image', '') + ".jpg"
+		image_name = request.form.get('image', '') + ".jpg"
 		if not file_name:
 			return jsonify(code=500, messages="No input text file")
 		file_path = os.path.join(ConfigIO.get("ebook_dir"), file_name)
@@ -134,7 +127,8 @@ class EbookConvert(View):
 		if not os.path.isfile(image_path):
 			image_path = None
 		print(f"Converting {file_path}, title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
-		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des), image_path)
+		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des),
+		                          image_path)
 		output = converter.convert()
 		return jsonify(code=200, info=converter.info, output=output)
 
@@ -224,15 +218,17 @@ def write_text_file(text: str, path):
 		f.write(text)
 		f.close()
 
+
 # make a list of possible chap format, start from the strict regex.
 # chap_regex = r"(?m)☆?、?第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷]"
-chap_regex_list = [r"(?m)^[\s\r\n\.☆、—-]*第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷][\s\r\n\.☆、—-].{0,30}", # 第一章 飞雪连天
-                   r"(?m)^.{0,10}第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷].{0,30}", # 1. 第一章 飞雪连天
-                   r"(?m)^[\s\r\n\.☆、—-]*\d+[\s\r\n\.☆、—-].{0,30}", # 1. 飞雪连天
-                   r"(?m)^.{0,10}\d+.{0,30}", # 正文 1. 飞雪连天
-                   r"(?m)^[\s\r\n\.☆、—-]*[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}", # ☆ 卷一 飞雪连天
-                   r"(?m)^.{0,10}[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}", # ☆一。 卷一 飞雪连天
-                   r"(?m)^[\s\r\n\.]*[☆、—-].{0,30}"] # ☆ 飞雪连天
+chap_regex_list = [
+	r"(?m)^[\s\r\n\.☆、—-]*第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷][\s\r\n\.☆、—-].{0,30}",  # 第一章 飞雪连天
+	r"(?m)^.{0,10}第[0123456789一二三四五六七八九十零〇百千两]+[章回部节集卷].{0,30}",  # 1. 第一章 飞雪连天
+	r"(?m)^[\s\r\n\.☆、—-]*\d+[\s\r\n\.☆、—-].{0,30}",  # 1. 飞雪连天
+	r"(?m)^.{0,10}\d+.{0,30}",  # 正文 1. 飞雪连天
+	r"(?m)^[\s\r\n\.☆、—-]*[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}",  # ☆ 卷一 飞雪连天
+	r"(?m)^.{0,10}[第章集卷][0123456789一二三四五六七八九十零〇百千两]+[\s\r\n\.☆、—-].{0,30}",  # ☆一。 卷一 飞雪连天
+	r"(?m)^[\s\r\n\.]*[☆、—-].{0,30}"]  # ☆ 飞雪连天
 
 
 def get_image(url):
@@ -252,6 +248,11 @@ def extractHtml(url: str, cookies=None):
 			r = requests.get(url, headers={'User-Agent': UA.get()}, cookies=cookies)
 			r.raise_for_status()
 			return r
+		except HTTPError as ex:
+			print(f"Error: Downloading {url} with {ex}")
+			if ex.response.status_code == 429:
+				sleep(5)
+			retry -= 1
 		except Exception as ex:
 			print(f"Error: Downloading {url} with {ex}")
 			UA.renew()
@@ -262,7 +263,7 @@ def extractHtml(url: str, cookies=None):
 def extractHtmlImage(url: str):
 	image = None
 	response = extractHtml(url)
-	if response.status_code == 200:
+	if response and response.status_code == 200:
 		image = response.content
 	return image
 
@@ -270,8 +271,9 @@ def extractHtmlImage(url: str):
 def extractHtmlText(url: str, cookies=None):
 	text = ""
 	response = extractHtml(url, cookies)
-	if response.status_code == 200:
-		text = unquote(response.text)
+	if response and response.status_code == 200:
+		response.encoding = response.apparent_encoding
+		text = unquote(response.text, response.encoding)
 	return text
 
 
@@ -284,10 +286,10 @@ def extractHtmlSoup(url: str, cookies=None):
 
 
 class EpubConverter:
-	def __init__(self, data, title, author="", tags = "", des="", image_url=None):
+	def __init__(self, data, title="", author="", tags="", des="", image_url=None):
 		self.data = data
 		self.path = ConfigIO.get("ebook_dir")
-		self.title = title
+		self.title = title if title else ""
 		self.author = author if author else ""
 		self.tags = tags if tags else ""
 		self.des = des if des else ""
@@ -363,8 +365,8 @@ class EpubConverter:
 					indices.append(start + diff)
 					start += found.end()
 					break
-			if diff == -1: # no chap with known regex found smaller than 8000 words
-				diff = self.data[start:start+8000].rfind("\n") # find the last occurrence of line breaker
+			if diff == -1:  # no chap with known regex found smaller than 8000 words
+				diff = self.data[start:start + 8000].rfind("\n")  # find the last occurrence of line breaker
 				if diff == -1:
 					start += 8000
 				else:
@@ -396,7 +398,7 @@ class EpubConverter:
 			self.ebook.add_metadata('DC', 'description', self.des)
 
 		# create add intro page
-		intro = epub.EpubHtml(title="简介",file_name="intro.xhtml", lang="zh")
+		intro = epub.EpubHtml(title="简介", file_name="intro.xhtml", lang="zh")
 		intro.content = ("<h2>%s</h2><h3>作者：%s</h3><h3>内容标签：%s</h3><p>%s</p>" %
 		                 (self.title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
 		self.ebook.toc.append(epub.Link("intro.xhtml", "简介", "intro"))
@@ -428,142 +430,115 @@ class EpubConverter:
 		return self.title + ".epub"
 
 
-class ScrapeHtml:
-	def __init__(self, url):
+class EbookWebExtractor:
+	def __init__(self, url, args: dict):
 		self.split_utl = urlsplit(url)
-		self.parsers = {}
-		self.set_parsers()
+		self.message = ""
+		self.args = args
 		self.info = {}
-		self.set_intro()
-		print(self.info.__str__())
-		self.set_pages()
-		self.download()
+		self.setup()
 
-	def get_parser(self, key):
-		return self.parsers.get(key, "")
-
-	def get_info(self, key):
-		return self.info.get(key, "")
-
-	def set_parsers(self):
-		# Read parsers for the current website in to dict.
-		for p in ConfigIO.get("web_parsers"):
+	def setup(self):
+		for p in ConfigIO.get("web_parsers"):  # known network location from config
 			if p.get("base", "") == self.split_utl.netloc:
 				for key, value in p.items():
-					self.parsers[key] = value
-		if not self.parsers:
-			exit(f"Failed parsing {self.split_utl.geturl()}, {self.split_utl.netloc} is not in config.json -> parsers.")
-		print(self.parsers.__str__())
+					self.info[key] = value
+		for k, v in self.args.items():  # input info manually, override parsed info
+			self.info[k] = v
+		self.set_message(f"Gathered info: {self.info.__str__()}")
 
-	def set_intro(self):
-		# Find the book number. Put together book intro page url.
-		temp = re.match(self.get_parser("book_no"), self.split_utl.path)
-		if not temp:
-			print(f"Failed parsing book number from {self.split_utl.geturl()}")
-			return
-		self.info["book_no"] = temp.group(1)
-		self.info["intro"] = self.get_parser("intro") % self.get_info("book_no")
-
-		# Head contains title, author and hopefully tags.
-		if not self.get_info("intro"):
-			print(f"Failed getting intro url from {self.split_utl.geturl()}")
-			return
-		soup = extractHtmlSoup(self.get_info("intro"))
-		if not soup:
-			print(f"Failed fetching {self.get_info('intro')}")
-			return
-		element = soup.find(attrs=self.get_parser('head'))
-		if element:
-			self.info["head"] = element.text
-			txt = re.match(self.get_parser("title"), self.get_info('head'))
-			if txt:
-				self.info["title"] = txt.group(1)
-				self.info["author"] = txt.group(2)
-				self.info["tags"] = txt.group(3)
-		element = soup.find(attrs=self.get_parser('des'))
-		if element:
-			self.info["des"] = "\n".join(element.stripped_strings)
-		element = soup.find(self.get_parser('img'))
-		if element:
-			self.info["img"] = self.split_utl._replace(path=element.get("src")).geturl()
-
-	def set_head(self):
-		# Book title must be available. Try getting it by tags h1, title, only run this when failed parsing intro page
-		if self.get_info("title"):
-			return
-		url = self.get_parser("page") % (self.get_info("book_no"), self.get_parser('first_page'))
-		soup = extractHtmlSoup(url)
-		if not soup:
-			print(f"Failed fetching {url}")
-			return
-		element = soup.find('h1')
-		element = element if element else soup.find('title')
-		if element:
-			head = element.text
-			txt = re.match(self.get_parser("title"), head)
-			if txt:
-				self.info["title"] = txt.group(1)
-				self.info["author"] = txt.group(2)
-				self.info["tags"] = txt.group(3)
-
-	def set_pages(self):
-		temp = 0
+	def set_pages_indexed(self):
 		soup = extractHtmlSoup(self.split_utl.geturl())
-		if soup:
-			element = soup.find(string=self.get_parser("last_page"))
+		if not soup:
+			return
+		hrefs = []
+		pages = set()
+		attr = self.info.get("indexed")
+		if attr: # input contains indexed
+			element = soup.find(attrs=attr)
 			if element:
-				href = element.parent.get("href")
-				if href:
-					last = re.match(self.get_parser("last_page_no"), href)
-					if last:
-						temp = int(last.group(1))
-		if temp <= 1:
-			return
-		self.info["pages"] = [n for n in range(self.parsers.get("first_page", 1), temp + 1)]
+				pages = element.find_all("a")
+		else: # there are many unordered list in html, I bet the longest list is the page list
+			uls = soup.find_all("ul")
+			for ul in uls:
+				a = ul.find_all("a")
+				if a and len(a) > len(pages):
+					pages = a
+		for p in pages:
+			h = p.get("href")
+			if h:
+				if not self.split_utl.netloc in h: # not all href contain the host location
+					h = self.split_utl.netloc + h
+				hrefs.append(h)
+		self.info["pages"] = hrefs
 
-	def download(self):
-		self.set_head()
-		if not self.get_info("title"):
-			print(f"Download failed: getting no book title from {self.split_utl.geturl()}")
-			return
-		for x in ["title", "author", "tags", "des"]:
-			self.info[x] = clean_txt(self.get_info(x))
-		if not self.get_info("tags") and self.get_info("des"):
-			temp = re.search('内容标签[:：](.*)', self.get_info("des"))
-			if temp:
-				self.info["tags"] = temp.group(1)
+	def extract(self):
+		if self.info.get("indexed"):
+			self.set_message(f"Fetching page urls from index page: {self.split_utl.geturl()}")
+			self.set_pages_indexed()
+			return self.extract_index()
+		elif self.info.get("next"):
+			self.set_message(f"Fetching page urls from first page: {self.split_utl.geturl()}")
+			return self.extract_traverse()
+		else:
+			self.set_message(f"Please input extracting method - index or next(page by page): {self.split_utl.geturl()}")
+			return ""
 
-		if not self.get_info("pages"):
-			print(f"Download failed: getting no pages from {self.split_utl.geturl()}")
-			return
-		text = ""
-		for page in self.get_info("pages"):
-			url = self.get_parser("page") % (self.get_info("book_no"), page)
-			soup = extractHtmlSoup(url)
+	def extract_index(self):
+		if not self.info.get("pages"):
+			self.set_message(f"Failed to get pages from index page {self.split_utl.geturl()}")
+			return ""
+		self.set_message(f"Extracting {len(self.info.get("pages"))} pages from {self.split_utl.geturl()}")
+		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "nr1"} # input content_tag or use id=nr1
+		for page in self.info.get("pages"):
+			soup = extractHtmlSoup(page)
 			temp = f"Failed to download page {page}\n"
 			if soup:
-				element = soup.find(id=self.get_parser("content"))
+				element = soup.find(attrs=attr)
 				if element:
 					temp = "\n".join(element.stripped_strings)
+				else:
+					temp = f"Failed to extract page {page}, wrong content tag: {attr}"
 			text += temp
+			sleep(0.5) # to avoid 429 Client Error: Too Many Requests
 		text = clean_txt(text)
-		text = re.sub(self.get_parser('watermark'), '', text)
+		text = re.sub(self.info.get('watermark', ""), '', text)
 		if len(text) < 10000:
-			print(f"Failed downloading {self.get_info('title')}. Article is too short: {len(text)}")
-			return
-		print(f"Successfully downloaded {self.get_info('title')}. Word count: {len(text)}")
-		EpubConverter(text, self.get_info('title'), self.get_info('author'), self.get_info("tags"),
-		              self.get_info("des"), self.get_info('img'))
-		return True
+			self.set_message(f"Suspected download failure. Article is too short: {len(text)}")
+		else:
+			self.set_message(f"Download Success. Word count: {len(text)}")
+		return text
 
+	def extract_traverse(self):
+		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
+		n = self.info.get("next") if self.info.get("next") else "下一页"
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "nr1"} # input content_tag or use id=nr1
+		url = self.split_utl.geturl()
+		while True:
+			soup = extractHtmlSoup(url)
+			if not soup:
+				self.set_message(f"Failed to download page {url}\n")
+				break
+			text_element = soup.find(attrs=attr)
+			if text_element:
+				temp = "\n".join(text_element.stripped_strings)
+			else:
+				temp = f"Failed to extract page {url}, wrong content tag: {attr}"
+			text += temp
+			n_element = soup.find(string=n)
+			if  not n_element:
+				self.set_message(f"Last page {url}\n")
+				break
+			href = n_element.parent.get("href")
+			if not href:
+				self.set_message(f"Last page {url}\n")
+				break
+			if not self.split_utl.netloc in href: # not all href contain the host location
+				href = self.split_utl.netloc + href
+			url = href
+		return text
 
-class LocalTxtToEpub:
-	def __init__(self, file, image_url=None):
-		self.file = file
-		self.image_url = image_url
-
-	def process(self):
-		data = clean_txt(read_binary_file(self.file))
-		if not data:
-			return
-		EpubConverter(data=data, title="", image_url=self.image_url).convert()
+	def set_message(self, message):
+		print(message)
+		self.message += message + "\n"

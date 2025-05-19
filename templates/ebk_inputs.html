@@ -141,6 +141,7 @@
         $.post("ebk_email", {files: names}, function (response) {
             if (response.code === 200) {
                 console.log("Sent email!");
+                window.alert("Email has been sent:\n " + names.join("\n "));
             }
         })
     }
