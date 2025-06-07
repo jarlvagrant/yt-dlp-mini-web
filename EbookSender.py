@@ -1,6 +1,8 @@
 import os
 import re
+import threading
 from pathlib import Path
+from threading import Thread
 from time import sleep
 from urllib.parse import urlsplit, unquote
 
@@ -8,14 +10,61 @@ import chinese_converter
 import requests
 from bs4 import BeautifulSoup
 from ebooklib import epub
-from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash, send_from_directory
+from flask import typing as ft, render_template, Response, request, jsonify, flash, send_from_directory
 from flask.views import View
 from requests import HTTPError
-from werkzeug.utils import redirect
 
-from Utils import ConfigIO, UA, SendEmail, getInitialSubfolders, getInitialFolder
+from Utils import ConfigIO, UA, SendEmail, getInitialSubfolders, getInitialFolder, getTime
 
-book_dict = {}
+
+class LocalBookStatus:
+	def __init__(self):
+		self.status = {}
+
+	def add(self, key):
+		if not self.status.get(key):
+			self.status[key] = {"intro": "", "image": "", "txt": "", "epub": "", "chapter": ""}
+
+	def remove(self, key):
+		self.status.pop(key, None)
+
+	def get_value(self, key, sub_key):
+		item = self.status.get(key)
+		if not item:
+			self.add(key)
+			return self.get_value(key, sub_key)
+		else:
+			return item.get(sub_key)
+
+	def set_value(self, key, sub_key, value):
+		item = self.status.get(key)
+		if not item:
+			self.add(key)
+			self.set_value(key, sub_key, value)
+		else:
+			item[sub_key] = value
+
+	def get_value_if_key(self, key, sub_key):
+		item = self.status.get(key)
+		if item:
+			return item.get(sub_key)
+		return None
+
+	def set_value_if_key(self, key, sub_key, value):
+		item = self.status.get(key)
+		if item:
+			item[sub_key] = value
+
+class UrlBookStatus(LocalBookStatus):
+	def add(self, key):
+		if not self.status.get(key):
+			self.status[key] = {"content": "", "chapter": "", "thread": Thread(), "image": "", "txt": "", "epub": "",
+			                    "error": "", "intro": "", "is_collapsed": ""}
+
+
+local_book_dict = LocalBookStatus()
+
+url_book_dict = UrlBookStatus()
 
 
 class EBook(View):
@@ -26,111 +75,237 @@ class EBook(View):
 		                       recipient=ConfigIO.get("email", "to"))
 
 
-class EbookInputs(View):
-	methods = ['POST']
-
+class EbookSyncInput(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		new_books = request.form.getlist('files[]')
-		print(new_books)
-		return render_template("ebk_inputs.html", txt_files=new_books)
+		key = request.form.get("key")
+		sub_key = request.form.get("sub_key")
+		value = request.form.get("value")
+		local_book_dict.set_value_if_key(key, sub_key, value)
+		url_book_dict.set_value_if_key(key, sub_key, value)
+		print(f"Synced {key}: {sub_key} -> {value}")
+		return jsonify(code=200)
 
-
-class EbookUpload(View):
-	methods = ['POST']
-
+class EbookSyncOutput(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		path = ConfigIO.get("ebook_dir")
-		if not os.path.isdir(path):
-			flash("Invalid upload path: {path}")
-		else:
-			files = request.files.getlist("docs")
-			names = []
-			for f in files:
-				# filename = secure_filename(file.filename)
-				names.append(f.filename)
-				f.save(os.path.join(ConfigIO.get("ebook_dir"), f.filename))
-			print("Uploaded files: {names}".format(names=names))
-		return redirect(url_for("ebook"))
+		items = {}
+		error = ""
+		for k, v in url_book_dict.status.items():
+			t = v.get('thread')
+			if t and t.is_alive():
+				items[k] = v.get('content')
+			error += v.get('error')
+		print(f"Extractor is working at {items.__str__()}")
+		res = jsonify(code=200, items=items, error=error) if items else jsonify(code=200, error=error)
+		return res
+
+class EbookUploads(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		if request.method == "POST":
+			path = ConfigIO.get("ebook_dir")
+			if not os.path.isdir(path):
+				flash("Invalid upload path: {path}")
+			else:
+				files = request.files.getlist("docs")
+				for f in files:
+					file_name = clean_txt(f.filename)
+					file_path = os.path.join(path, file_name)
+					f.save(file_path)
+					local_book_dict.set_value(file_name, "txt", file_path)
+					print(f"Uploaded file: {file_path}")
+			return Response(status=200)
+		return render_template("ebk_uploads.html", txt_files=local_book_dict.status)
+
+
+class EbookDownload(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		file_path = request.args.get('file_path')
+		print(f"Downloading request {file_path}")
+		if not os.path.isfile(file_path):
+			print(f"Invalid downloading path: {file_path}")
+			return Response(status=404)
+
+		directory = Path(file_path).parent
+		path = Path(file_path).name
+		return send_from_directory(directory, path=path)
+
+
+busy_hosts = {str: threading.Event()}
+
+
+class EbookUrls(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		if request.method == "POST":
+			new_url = request.form.get('new_url')
+			if new_url:
+				url_book_dict.add(new_url)
+		return render_template("ebk_urls.html", book_urls=url_book_dict.status)
+
+
+class EbookExtractorTask(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		url = request.form.get("url")
+		if not url:
+			return jsonify(code=500, message="No url specified")
+		intro = request.form.get("intro")
+		method = request.form.get("method", "index")
+		index_tag_k = request.form.get("index_tag_k")
+		index_tag_v = request.form.get("index_tag_v")
+		index_tag = {index_tag_k: index_tag_v} if index_tag_k and index_tag_v else {}
+		next_tag = request.form.get("next_tag")
+		content_tag_k = request.form.get("content_tag_k")
+		content_tag_v = request.form.get("content_tag_v")
+		content_tag = {content_tag_k: content_tag_v} if content_tag_k and content_tag_v else {}
+		args = {"intro": clean_txt(intro), "method": method, "index_tag": index_tag, "next_tag": next_tag,
+		        "content_tag": content_tag}
+
+		print(f"{url}: {args.__str__()}")
+		t = Thread(target=extractor_worker, args=(url, args))
+		url_book_dict.set_value(url, "thread", t)
+		t.start()
+		return jsonify(code=200, message="Extracting {url}")
+
+
+def extractor_worker(url, args):
+	url_netloc = urlsplit(url).netloc
+	print(f"Busy hosts: {busy_hosts.keys().__str__()}")
+	if busy_hosts.get(url_netloc):
+		print(f"Waiting for {url_netloc} to be free...")
+		busy_hosts.get(url_netloc).wait()
+	else:
+		busy_hosts[url_netloc] = threading.Event()
+	busy_hosts[url_netloc].clear()
+	extractor = EbookWebExtractor(url, args)
+	text = extractor.extract()
+	content = text[0:2000] if len(text) > 2000 else text
+	url_book_dict.set_value(url, "content", content)
+	url_book_dict.set_value(url, "error", extractor.error)
+	print(f"Host {url_netloc} freed")
+	busy_hosts[url_netloc].set()
+
+	# converter task doesn't need to be waiting for
+	title, author, tags, des = get_meta_data(args.get("intro"), text)
+	if not title:
+		print(f"Can't save extracted content to file: failed to extract title")
+		url_book_dict.set_value(url, "error", url_book_dict.get_value(url, "error") + "\nfailed to extract title")
+		return
+	txt_path = os.path.join(ConfigIO.get("ebook_dir"), title + ".txt")
+	url_book_dict.set_value(url, "txt", txt_path)
+	write_text_file(text, txt_path)
+	image_path = url_book_dict.get_value(url, "image")
+
+	print(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+	converter = EpubConverter(text, title, author, tags, des, image_path)
+	output = converter.convert()
+	url_book_dict.set_value(url, "epub", output)
+	url_book_dict.set_value(url, "chapter", converter.info)
+
+
+class EbookEmail(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		keys = request.form.getlist("keys[]")
+		sub_key = request.form.get("sub_key")
+		code = 200
+		message = ""
+		for key in keys:
+			value = url_book_dict.get_value_if_key(key, sub_key) \
+				if url_book_dict.get_value_if_key(key, sub_key) else local_book_dict.get_value_if_key(key, sub_key)
+			if value:
+				print(f"Sending email with attachment {value}")
+				sender = SendEmail(value)
+				code = 400 if not sender.send() else code
+				message += sender.message + "\n"
+		return jsonify(code=code, message=message)
+
+
+class EbookConverterTask(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		key = request.form.get('key', '')
+		intro = clean_txt(request.form.get('intro', ''))
+		txt_path = local_book_dict.get_value(key, "txt")
+		if not os.path.isfile(txt_path):
+			return jsonify(code=500, messages="Input text file not found")
+
+		data = clean_txt(read_binary_file(txt_path))
+		title = clean_txt(Path(txt_path).stem)
+		image_path = local_book_dict.get_value(key, "image")
+		if not os.path.isfile(image_path):
+			image_path = None
+		_, author, tags, des = get_meta_data(intro, data)
+		print(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des),
+		                          image_path)
+		output = converter.convert()
+		local_book_dict.set_value(key, "epub", output)
+		local_book_dict.set_value(key, "chapter", converter.info)
+		return jsonify(code=200, chapter=converter.info, epub=output)
 
 
 class EbookCover(View):
-	methods = ['POST']
-
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		title = request.form.get('title', 'unknown') + ".jpg"
+		key = request.form.get('title')
 		file = request.files.get('image')
-		if file:
-			print(f"Save image: {file.filename} to {title}")
+		if key and file:
+			image_name = file.filename
+			image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
 			image = file.read()
+			print(f"Save image: {image_name} to {image_path}")
 			if image:
-				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
+				with open(image_path, "wb") as f:
 					f.write(image)
-					return Response(status=200)
+				local_book_dict.set_value_if_key(key, "image", image_path)
+				url_book_dict.set_value_if_key(key, "image", image_path)
+				return Response(status=200)
 		return Response(status=500)
 
 
 class EbookCoverUrl(View):
-	methods = ['POST']
-
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		title = request.form.get('title', 'unknown') + ".jpg"
+		key = request.form.get('title')
 		url = request.form.get('img_url')
-		if url:
-			print(f"Save image: {url} to {title}")
+		if key and url:
 			image = get_image(url)
+			image_name = Path(url).stem + ".jpg"
+			image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
+			print(f"Save image: {url} to {image_path}")
 			if image:
-				with open(os.path.join(ConfigIO.get("ebook_dir"), title), "wb") as f:
+				with open(image_path, "wb") as f:
 					f.write(image)
+				local_book_dict.set_value_if_key(key, "image", image_path)
+				url_book_dict.set_value_if_key(key, "image", image_path)
 				return jsonify(code=200)
 		return jsonify(code=500)
 
 
-class EbookLink(View):
-	methods = ['GET']
-
+class EbookRemoveItem(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		print(f"Uploading request {request.url}")
-		filename = request.args.get('filename')
-		return send_from_directory(ConfigIO.get("ebook_dir"), path=filename)
-
-
-class EbookEmail(View):
-	methods = ['POST']
-
-	def dispatch_request(self) -> ft.ResponseReturnValue:
-		items = request.form.getlist('files[]')
-		print(f"Sending email with attachment {items}")
-		for item in items:
-			SendEmail(os.path.join(ConfigIO.get("ebook_dir"), item), filename=item).send()
+		key = request.form.get('key')
+		to_all = request.form.get('all')
+		if to_all:
+			url_book_dict.status.clear()
+			local_book_dict.status.clear()
+		else:
+			url_book_dict.remove(key)
+			local_book_dict.remove(key)
 		return jsonify(code=200)
 
 
-class EbookConvert(View):
-	methods = ['POST']
-
-	def dispatch_request(self) -> ft.ResponseReturnValue:
-		file_name = request.form.get('file', '')
-		title = request.form.get('title', '')
-		author = request.form.get('author', '')
-		tags = request.form.get('tags', '')
-		des = request.form.get('des', '')
-		image_name = request.form.get('image', '') + ".jpg"
-		if not file_name:
-			return jsonify(code=500, messages="No input text file")
-		file_path = os.path.join(ConfigIO.get("ebook_dir"), file_name)
-		if not os.path.isfile(file_path):
-			return jsonify(code=500, messages="Input text file not found")
-		data = clean_txt(read_binary_file(file_path))
-		if not title:
-			title = Path(file_path).stem
-		image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
-		if not os.path.isfile(image_path):
-			image_path = None
-		print(f"Converting {file_path}, title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
-		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des),
-		                          image_path)
-		output = converter.convert()
-		return jsonify(code=200, info=converter.info, output=output)
+def get_meta_data(intro, data):
+	content = intro if intro else data
+	title, author, tags = "", "", ""
+	seg = re.search(r"(?s)[.]?([^\n《》「」『』【】\/]*).?\n?作者[：:]([^\n》」』】\(]*)", content)
+	if seg:
+		title = seg.group(1)
+		author = seg.group(2)
+	if not title:
+		for line in content.split():
+			if line and not line.strip().startswith("http"):
+				title = line
+				break
+	if not tags:
+		seg = re.search('内容标签[:：](.*)', content)
+	if seg:
+		tags = seg.group(1)
+	return title.strip(), author.strip(), tags, intro
 
 
 def read_binary_file(filepath=None):
@@ -297,30 +472,8 @@ class EpubConverter:
 		# we only need this when txt content is no local
 		# write_text_file("\n".join([f"《{self.title}》作者：{self.author}", f"内容标签：{self.tags}", self.des, self.data]),
 		#                 os.path.join(self.path, self.title + ".txt"))
-		self.verify()
 		self.info = ""
 		self.ebook = epub.EpubBook()
-
-	def verify(self):
-		if not self.data:
-			return
-
-		if not self.title or not self.author:
-			temp = re.search(r"(?s)[.]?([^\n《》「」『』【】\/]*).?\n?作者[：:]([^\n》」』】\(]*)", self.data)
-			if temp:
-				self.title = temp.group(1) if not self.title else self.title
-				self.author = temp.group(2) if not self.author else self.author
-		if not self.title:
-			self.title = self.data.split("\n", 1)[0]
-			if "http" in self.title:
-				self.title = ""
-				temp = self.data.split("\n", 2)
-				if len(temp) > 2:
-					self.title = temp[1]
-		if not self.tags:
-			temp = re.search('内容标签[:：](.*)', self.data)
-			if temp:
-				self.tags = temp.group(1)
 
 	def get_chaps(self, indices):
 		chaps = ()
@@ -373,7 +526,6 @@ class EpubConverter:
 					start += diff
 				indices.append(start)
 		indices.append(end)
-		print(indices)
 		return indices
 
 	def convert(self):
@@ -425,15 +577,18 @@ class EpubConverter:
 		self.ebook.spine = ["nav", intro, *chaps]
 
 		# write to the file
-		epub.write_epub(os.path.join(self.path, self.title + ".epub"), self.ebook, {})
+		file_path = os.path.join(self.path, self.title + ".epub")
+		epub.write_epub(file_path, self.ebook, {})
 		print(f"Success: {self.title} converting done. number of chapters: {len(indices)}")
-		return self.title + ".epub"
+		return file_path
 
 
 class EbookWebExtractor:
 	def __init__(self, url, args: dict):
 		self.split_utl = urlsplit(url)
 		self.message = ""
+		self.error = ""
+		self.content = ""
 		self.args = args
 		self.info = {}
 		self.setup()
@@ -447,18 +602,106 @@ class EbookWebExtractor:
 			self.info[k] = v
 		self.set_message(f"Gathered info: {self.info.__str__()}")
 
-	def set_pages_indexed(self):
+	def update(self):
+		# only need this to show progress on webpage
+		url = self.split_utl.geturl()
+		url_book_dict.set_value_if_key(url, "message", self.message)
+		url_book_dict.set_value_if_key(url, "error", self.error)
+		url_book_dict.set_value_if_key(url, "content", self.content)
+
+	def extract(self):
+		method = self.info.get("method", "index")
+		if method == "index":
+			self.set_message(f"Fetching page urls from index page: {self.split_utl.geturl()}")
+			self.set_pages_index()
+			text = self.extract_index()
+		elif method == "next_tag":
+			self.set_message(f"Fetching page urls from first page: {self.split_utl.geturl()}")
+			text = self.extract_traverse()
+		else:
+			self.set_message(f"Please input extracting method - index or next(page by page): {self.split_utl.geturl()}")
+			text = ""
+		text = clean_txt(text)
+		text = re.sub(self.info.get('watermark', ""), '', text)
+		if len(text) < 10000:
+			self.set_error(f"Suspected download failure. Article is too short: {len(text)}")
+		else:
+			self.set_message(f"Download Success. Word count: {len(text)}")
+		return text
+
+	def extract_index(self):
+		if not self.info.get("pages"):
+			self.set_error(f"Failed to get pages from index page {self.split_utl.geturl()}")
+			return ""
+		self.set_message(f"Extracting {len(self.info.get("pages"))} pages from {self.split_utl.geturl()}")
+		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
+			"id": "text"}  # input content_tag or use id=text
+		for idx, page in enumerate(self.info.get("pages")):
+			soup = extractHtmlSoup(page)
+			if not soup:
+				self.set_error(f"Failed to download page {page}\n")
+				break
+			element = soup.find(attrs=attr)
+			if element:
+				temp = "\n".join(element.stripped_strings)
+				text += temp
+				temp = f"{idx}/{len(self.info.get("pages"))}\n{temp}"
+				self.content = (temp[0:50] if len(temp) > 50 else temp) + "......"
+			else:
+				self.set_error(f"Failed to extract page {page}, wrong content tag: {attr}")
+				break
+			self.update()
+			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
+		return text
+
+	def extract_traverse(self):
+		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
+		n = self.info.get("next_tag") if self.info.get("next_tag") else "下一页"
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
+			"id": "text"}  # input content_tag or use id=text
+		url = self.split_utl.geturl()
+		page = 0
+		while True:
+			soup = extractHtmlSoup(url)
+			if not soup:
+				self.set_error(f"Failed to download page {url}\n")
+				break
+			text_element = soup.find(attrs=attr)
+			if text_element:
+				temp = "\n".join(text_element.stripped_strings)
+				text += temp
+				temp = f"{page}/unknown\n{temp}"
+				self.content = (temp[0:50] if len(temp) > 50 else temp) + "......"
+			else:
+				self.set_error(f"Failed to extract page {url}, wrong content tag: {attr}")
+				break
+			n_element = soup.find(string=n)
+			if not n_element:
+				self.set_message(f"Last page {url}\n")
+				break
+			href = n_element.parent.get("href")
+			if not href:
+				self.set_message(f"Last page {url}\n")
+				break
+			if not self.split_utl.netloc in href:  # not all href contain the host location
+				href = self.split_utl.netloc + href
+			url = href
+			self.update()
+		return text
+
+	def set_pages_index(self):
 		soup = extractHtmlSoup(self.split_utl.geturl())
 		if not soup:
 			return
 		hrefs = []
 		pages = set()
-		attr = self.info.get("indexed")
-		if attr: # input contains indexed
+		attr = self.info.get("index_tag")
+		if attr:  # input contains index tag
 			element = soup.find(attrs=attr)
 			if element:
 				pages = element.find_all("a")
-		else: # there are many unordered list in html, I bet the longest list is the page list
+		else:  # there are many unordered list in html, I bet the longest list is the page list
 			uls = soup.find_all("ul")
 			for ul in uls:
 				a = ul.find_all("a")
@@ -467,78 +710,15 @@ class EbookWebExtractor:
 		for p in pages:
 			h = p.get("href")
 			if h:
-				if not self.split_utl.netloc in h: # not all href contain the host location
+				if not self.split_utl.netloc in h:  # not all href contain the host location
 					h = self.split_utl.netloc + h
 				hrefs.append(h)
 		self.info["pages"] = hrefs
 
-	def extract(self):
-		if self.info.get("indexed"):
-			self.set_message(f"Fetching page urls from index page: {self.split_utl.geturl()}")
-			self.set_pages_indexed()
-			return self.extract_index()
-		elif self.info.get("next"):
-			self.set_message(f"Fetching page urls from first page: {self.split_utl.geturl()}")
-			return self.extract_traverse()
-		else:
-			self.set_message(f"Please input extracting method - index or next(page by page): {self.split_utl.geturl()}")
-			return ""
-
-	def extract_index(self):
-		if not self.info.get("pages"):
-			self.set_message(f"Failed to get pages from index page {self.split_utl.geturl()}")
-			return ""
-		self.set_message(f"Extracting {len(self.info.get("pages"))} pages from {self.split_utl.geturl()}")
-		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
-		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "nr1"} # input content_tag or use id=nr1
-		for page in self.info.get("pages"):
-			soup = extractHtmlSoup(page)
-			temp = f"Failed to download page {page}\n"
-			if soup:
-				element = soup.find(attrs=attr)
-				if element:
-					temp = "\n".join(element.stripped_strings)
-				else:
-					temp = f"Failed to extract page {page}, wrong content tag: {attr}"
-			text += temp
-			sleep(0.5) # to avoid 429 Client Error: Too Many Requests
-		text = clean_txt(text)
-		text = re.sub(self.info.get('watermark', ""), '', text)
-		if len(text) < 10000:
-			self.set_message(f"Suspected download failure. Article is too short: {len(text)}")
-		else:
-			self.set_message(f"Download Success. Word count: {len(text)}")
-		return text
-
-	def extract_traverse(self):
-		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
-		n = self.info.get("next") if self.info.get("next") else "下一页"
-		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "nr1"} # input content_tag or use id=nr1
-		url = self.split_utl.geturl()
-		while True:
-			soup = extractHtmlSoup(url)
-			if not soup:
-				self.set_message(f"Failed to download page {url}\n")
-				break
-			text_element = soup.find(attrs=attr)
-			if text_element:
-				temp = "\n".join(text_element.stripped_strings)
-			else:
-				temp = f"Failed to extract page {url}, wrong content tag: {attr}"
-			text += temp
-			n_element = soup.find(string=n)
-			if  not n_element:
-				self.set_message(f"Last page {url}\n")
-				break
-			href = n_element.parent.get("href")
-			if not href:
-				self.set_message(f"Last page {url}\n")
-				break
-			if not self.split_utl.netloc in href: # not all href contain the host location
-				href = self.split_utl.netloc + href
-			url = href
-		return text
-
 	def set_message(self, message):
 		print(message)
 		self.message += message + "\n"
+
+	def set_error(self, message):
+		self.set_message(message)
+		self.error += message + "\n"

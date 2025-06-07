@@ -54,9 +54,6 @@ class Task:
 
 
 class TaskMaker(View):
-
-	methods = ['POST']
-
 	def __init__(self):
 		self.ext = output_formats.get("video", "")
 		self.output_dir = ConfigIO.get("video_dir")

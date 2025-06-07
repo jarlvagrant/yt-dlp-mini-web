@@ -14,8 +14,10 @@ book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'cre
 
 
 def getDate():
-	return datetime.date.today()
+	return datetime.date.today().__str__()
 
+def getTime():
+	return datetime.datetime.now().__str__()
 
 class UserAgentGen(UserAgent):
 	def __init__(self):
@@ -149,31 +151,35 @@ def getSubfolders(cur_dir):
 
 
 class SendEmail:
-	def __init__(self, file, filename):
-		self.file = file
-		self.filename = filename
+	def __init__(self, filepath):
+		self.filepath = filepath
+		self.message = ""
 
 	def send(self):
-		if not self.filename or not os.path.isfile(self.file):
-			print(f"Invalid file name: {self.filename} or file path: {self.file}")
+		if not os.path.isfile(self.filepath):
+			print(f"Invalid file path: {self.filepath}")
+			self.message = f"Invalid file path: {self.filepath}"
 			return False
 
 		email = ConfigIO.get("email")
 		if not email or None in [email.get(key, None) for key in ["from" , "to" , "host", "port", "secret"]]:
 			print(f"Invalid email config in config.json: please check keys: from, to, host, port, secret")
+			self.message = f"Invalid email config in config.json: please check keys: from, to, host, port, secret"
 			return False
 		msg = EmailMessage()
-		msg['Subject'] = self.filename
+		filename = Path(self.filepath).name
+		msg['Subject'] = filename
 		msg['From'] = email.get("from")
 		msg['To'] = email.get("to")
-		with open(self.file, 'rb') as fp:
+		with open(self.filepath, 'rb') as fp:
 			data = fp.read()
-		msg.add_attachment(data, maintype='application', subtype='octet-stream', filename=self.filename)
+		msg.add_attachment(data, maintype='application', subtype='octet-stream', filename=filename)
 		# Add error and failure check
 		with smtplib.SMTP(email.get("host"), email.get("port")) as smtp:
 			smtp.starttls()
 			smtp.login(email.get("from"), email.get("secret"))
 			smtp.send_message(msg=msg)
 			smtp.quit()
-		print(f"Emailed {self.filename} to {email.get('to')}")
+		print(f"Emailed {filename} to {email.get('to')}")
+		self.message = f"Emailed {filename} to {email.get('to')}"
 		return True

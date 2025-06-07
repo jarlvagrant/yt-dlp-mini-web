@@ -7,7 +7,6 @@ from Utils import ConfigIO, getSubfolders
 
 
 class UpdateConfig(View):
-	methods = ['POST']
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		keys = request.form.get("key").split(" ")
 		value = request.form.get("value")
@@ -26,8 +25,6 @@ class UpdateDir(View):
 	Response is the validated retrieved path. If this path is not a valid directory,
 	send the previous path as response.
 	"""
-	methods = ['POST']
-
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		new_path = request.form.get("dir")
 		dir_type = request.form.get("id")
@@ -40,8 +37,6 @@ class UpdateDir(View):
 
 
 class ListSubfolders(View):
-	methods = ['POST']
-
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		cur_dir = request.form.get("cur_dir")
 		folders = getSubfolders(cur_dir)
