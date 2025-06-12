@@ -33,7 +33,7 @@ class UpdateDir(View):
 			code = 200
 			ConfigIO.set(dir_type, new_path)
 		print(f"Updating directory: {dir_type} = {new_path}, code = {code}")
-		return  jsonify(code=code)
+		return jsonify(code=code)
 
 
 class ListSubfolders(View):

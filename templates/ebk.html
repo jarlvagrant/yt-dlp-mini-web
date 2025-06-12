@@ -164,7 +164,10 @@
         $.post("/ebk_extractor_task", data, function (response) {
             if (response.code === 200) {
                 console.log("Initialed extract task " + part);
-                continuous_refresher();
+                refresh(part);
+            } else {
+                console.log("Failed initializing extract task " + part);
+                alert(response.message);
             }
         });
     }
@@ -176,38 +179,26 @@
         }
     }
 
-    let refresher_id = -1;
-
-    function continuous_refresher() {
-        console.log("refreshing " + refresher_id);
-        if (refresher_id === -1) {
-            refresher_id = setInterval(function () {
-                refresh();
-            }, 2000);
-        }
-    }
-
-    function refresh() {
-        $.get("/ebk_sync_output", function (response) {
-            if (response.code === 200) {
-                let items = response.items;
-                if (!items) {
-                    console.log("last refresh for extractor");
-                    $("#urls").load("/ebk_urls");
-                    clearInterval(refresher_id);
-                    refresher_id = -1;
-                }
-                for (let item in items) {
-                    let element = document.getElementById("content" + item);
-                    if (element) {
-                        element.value = items[item];
+    function refresh(url) {
+        let refresher_id = setInterval(function () {
+            $.post("/ebk_sync_output", {'key': url}, function (response) {
+                if (response.code === 200) {
+                    let content_e = document.getElementById('content' + url);
+                    let message_e = document.getElementById('message' + url);
+                    if (content_e.value !== response.content) {
+                        content_e.value = response.content;
+                    }
+                    if (message_e.innerText !== response.message) {
+                        message_e.innerText = response.message;
+                    }
+                    if (response.stop === true) {
+                        console.log("last refresh for extractor");
+                        $("#urls").load("/ebk_urls");
+                        clearInterval(refresher_id);
                     }
                 }
-                if (response.error) {
-                    alert(response.error);
-                }
-            }
-        })
+            })
+        }, 2000);
     }
 
     // need to check if input is the same on collapsible_content
@@ -266,14 +257,23 @@
             }
             console.log(names)
 
-            await fetch("/ebk_uploads", {method: "POST", body: formData})
+            await fetch("/ebk_uploads", {method: "POST", body: formData}).then(function (response) {
+                if (response.status === 200) {
+                    console.log("Uploaded " + names);
+                } else {
+                    response.text().then(function (text) {
+                        console.log(text);
+                        alert(text);
+                    })
+                }
+            })
             $("#uploads").load("/ebk_uploads");
         }
     }
 
     function add_extract_url() {
         let url = document.getElementById('ebook_url').value;
-        console.log(url);
+        console.log("Add url to extract: " + url);
         try {
             new URL(url);
         } catch (error) {

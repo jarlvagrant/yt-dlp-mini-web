@@ -59,7 +59,7 @@ class UrlBookStatus(LocalBookStatus):
 	def add(self, key):
 		if not self.status.get(key):
 			self.status[key] = {"content": "", "chapter": "", "thread": Thread(), "image": "", "txt": "", "epub": "",
-			                    "error": "", "intro": "", "is_collapsed": ""}
+			                    "message": "", "intro": "", "is_collapsed": ""}
 
 
 local_book_dict = LocalBookStatus()
@@ -71,6 +71,9 @@ class EBook(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		folder = getInitialFolder('ebook_dir')
 		subfolders = getInitialSubfolders(folder)
+		path = ConfigIO.get("ebook_dir")
+		if not os.path.isdir(path):
+			flash(f"Invalid upload path: {path}")
 		return render_template("ebk.html", ebook_dir=folder, folders=subfolders,
 		                       recipient=ConfigIO.get("email", "to"))
 
@@ -87,23 +90,20 @@ class EbookSyncInput(View):
 
 class EbookSyncOutput(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		items = {}
-		error = ""
-		for k, v in url_book_dict.status.items():
-			t = v.get('thread')
-			if t and t.is_alive():
-				items[k] = v.get('content')
-			error += v.get('error')
-		print(f"Extractor is working at {items.__str__()}")
-		res = jsonify(code=200, items=items, error=error) if items else jsonify(code=200, error=error)
-		return res
+		key = request.form.get("key")
+		message = url_book_dict.get_value_if_key(key, 'message')
+		content = url_book_dict.get_value_if_key(key, 'content')
+		t = url_book_dict.get_value_if_key(key, 'thread')
+		stop = False if t and t.is_alive() else True
+		return jsonify(code=200, message=message, content=content, stop=stop)
 
 class EbookUploads(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		if request.method == "POST":
 			path = ConfigIO.get("ebook_dir")
 			if not os.path.isdir(path):
-				flash("Invalid upload path: {path}")
+				print(f"Invalid upload path: {path}")
+				return Response(f'Invalid upload path: {path}', status=404)
 			else:
 				files = request.files.getlist("docs")
 				for f in files:
@@ -112,7 +112,7 @@ class EbookUploads(View):
 					f.save(file_path)
 					local_book_dict.set_value(file_name, "txt", file_path)
 					print(f"Uploaded file: {file_path}")
-			return Response(status=200)
+				return Response(status=200)
 		return render_template("ebk_uploads.html", txt_files=local_book_dict.status)
 
 
@@ -122,7 +122,7 @@ class EbookDownload(View):
 		print(f"Downloading request {file_path}")
 		if not os.path.isfile(file_path):
 			print(f"Invalid downloading path: {file_path}")
-			return Response(status=404)
+			return Response(f"Invalid downloading path: {file_path}", status=404)
 
 		directory = Path(file_path).parent
 		path = Path(file_path).name
@@ -146,6 +146,11 @@ class EbookExtractorTask(View):
 		url = request.form.get("url")
 		if not url:
 			return jsonify(code=500, message="No url specified")
+
+		path = ConfigIO.get("ebook_dir")
+		if not os.path.isdir(path):
+			return jsonify(code=501, message=f"Invalid upload path: {path}")
+
 		intro = request.form.get("intro")
 		method = request.form.get("method", "index")
 		index_tag_k = request.form.get("index_tag_k")
@@ -158,7 +163,7 @@ class EbookExtractorTask(View):
 		args = {"intro": clean_txt(intro), "method": method, "index_tag": index_tag, "next_tag": next_tag,
 		        "content_tag": content_tag}
 
-		print(f"{url}: {args.__str__()}")
+		print(f"Request to extract from {url}: {args.__str__()}")
 		t = Thread(target=extractor_worker, args=(url, args))
 		url_book_dict.set_value(url, "thread", t)
 		t.start()
@@ -170,6 +175,7 @@ def extractor_worker(url, args):
 	print(f"Busy hosts: {busy_hosts.keys().__str__()}")
 	if busy_hosts.get(url_netloc):
 		print(f"Waiting for {url_netloc} to be free...")
+		url_book_dict.set_value(url, "message", f"[INFO]: Waiting for {url_netloc} to be free...\n")
 		busy_hosts.get(url_netloc).wait()
 	else:
 		busy_hosts[url_netloc] = threading.Event()
@@ -178,7 +184,7 @@ def extractor_worker(url, args):
 	text = extractor.extract()
 	content = text[0:2000] if len(text) > 2000 else text
 	url_book_dict.set_value(url, "content", content)
-	url_book_dict.set_value(url, "error", extractor.error)
+	url_book_dict.set_value(url, "message", extractor.message)
 	print(f"Host {url_netloc} freed")
 	busy_hosts[url_netloc].set()
 
@@ -186,7 +192,7 @@ def extractor_worker(url, args):
 	title, author, tags, des = get_meta_data(args.get("intro"), text)
 	if not title:
 		print(f"Can't save extracted content to file: failed to extract title")
-		url_book_dict.set_value(url, "error", url_book_dict.get_value(url, "error") + "\nfailed to extract title")
+		url_book_dict.set_value(url, "message", url_book_dict.get_value(url, "message") + "[ERROR]: Failed to extract title")
 		return
 	txt_path = os.path.join(ConfigIO.get("ebook_dir"), title + ".txt")
 	url_book_dict.set_value(url, "txt", txt_path)
@@ -194,6 +200,7 @@ def extractor_worker(url, args):
 	image_path = url_book_dict.get_value(url, "image")
 
 	print(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+	url_book_dict.set_value(url, "message", url_book_dict.get_value(url, "message") + f"[INFO]: Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
 	converter = EpubConverter(text, title, author, tags, des, image_path)
 	output = converter.convert()
 	url_book_dict.set_value(url, "epub", output)
@@ -587,8 +594,6 @@ class EbookWebExtractor:
 	def __init__(self, url, args: dict):
 		self.split_utl = urlsplit(url)
 		self.message = ""
-		self.error = ""
-		self.content = ""
 		self.args = args
 		self.info = {}
 		self.setup()
@@ -602,20 +607,13 @@ class EbookWebExtractor:
 			self.info[k] = v
 		self.set_message(f"Gathered info: {self.info.__str__()}")
 
-	def update(self):
-		# only need this to show progress on webpage
-		url = self.split_utl.geturl()
-		url_book_dict.set_value_if_key(url, "message", self.message)
-		url_book_dict.set_value_if_key(url, "error", self.error)
-		url_book_dict.set_value_if_key(url, "content", self.content)
-
 	def extract(self):
 		method = self.info.get("method", "index")
 		if method == "index":
 			self.set_message(f"Fetching page urls from index page: {self.split_utl.geturl()}")
 			self.set_pages_index()
 			text = self.extract_index()
-		elif method == "next_tag":
+		elif method == "next":
 			self.set_message(f"Fetching page urls from first page: {self.split_utl.geturl()}")
 			text = self.extract_traverse()
 		else:
@@ -635,8 +633,7 @@ class EbookWebExtractor:
 			return ""
 		self.set_message(f"Extracting {len(self.info.get("pages"))} pages from {self.split_utl.geturl()}")
 		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
-		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
-			"id": "text"}  # input content_tag or use id=text
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "text"}  # input content_tag or use id=text
 		for idx, page in enumerate(self.info.get("pages")):
 			soup = extractHtmlSoup(page)
 			if not soup:
@@ -646,20 +643,18 @@ class EbookWebExtractor:
 			if element:
 				temp = "\n".join(element.stripped_strings)
 				text += temp
-				temp = f"{idx}/{len(self.info.get("pages"))}\n{temp}"
-				self.content = (temp[0:50] if len(temp) > 50 else temp) + "......"
+				temp = f"({idx}/{len(self.info.get("pages"))}) {temp}"
+				self.set_content((temp[0:80] if len(temp) > 80 else temp) + "......")
 			else:
 				self.set_error(f"Failed to extract page {page}, wrong content tag: {attr}")
 				break
-			self.update()
 			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
 		return text
 
 	def extract_traverse(self):
 		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
 		n = self.info.get("next_tag") if self.info.get("next_tag") else "下一页"
-		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
-			"id": "text"}  # input content_tag or use id=text
+		attr = self.info.get("content_tag") if self.info.get("content_tag") else {"id": "text"}  # input content_tag or use id=text
 		url = self.split_utl.geturl()
 		page = 0
 		while True:
@@ -671,8 +666,8 @@ class EbookWebExtractor:
 			if text_element:
 				temp = "\n".join(text_element.stripped_strings)
 				text += temp
-				temp = f"{page}/unknown\n{temp}"
-				self.content = (temp[0:50] if len(temp) > 50 else temp) + "......"
+				temp = f"({page}/unknown) {temp}"
+				self.set_content((temp[0:80] if len(temp) > 80 else temp) + "......")
 			else:
 				self.set_error(f"Failed to extract page {url}, wrong content tag: {attr}")
 				break
@@ -687,7 +682,6 @@ class EbookWebExtractor:
 			if not self.split_utl.netloc in href:  # not all href contain the host location
 				href = self.split_utl.netloc + href
 			url = href
-			self.update()
 		return text
 
 	def set_pages_index(self):
@@ -716,9 +710,15 @@ class EbookWebExtractor:
 		self.info["pages"] = hrefs
 
 	def set_message(self, message):
-		print(message)
-		self.message += message + "\n"
+		print("[INFO]: " +  message)
+		self.message += "[INFO]: " +  message + "\n"
+		url_book_dict.set_value_if_key(self.split_utl.geturl(), "message", self.message)
 
 	def set_error(self, message):
-		self.set_message(message)
-		self.error += message + "\n"
+		print("[ERROR]: " +  message)
+		self.message += "[ERROR]: " +  message + "\n"
+		url_book_dict.set_value_if_key(self.split_utl.geturl(), "message", self.message)
+
+	def set_content(self, content):
+		# only need this to show progress on webpage
+		url_book_dict.set_value_if_key(self.split_utl.geturl(), "content", content)

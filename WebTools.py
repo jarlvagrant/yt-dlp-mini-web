@@ -30,7 +30,7 @@ def main():
 	app.add_url_rule("/ebk_urls", methods=['GET', 'POST'], view_func=EbookUrls.as_view("ebk_urls"))
 	app.add_url_rule("/ebk_uploads", methods=['GET', 'POST'], view_func=EbookUploads.as_view("ebk_upload"))
 	app.add_url_rule("/ebk_sync_input", methods=['POST'], view_func=EbookSyncInput.as_view("ebk_sync_input"))
-	app.add_url_rule("/ebk_sync_output", methods=['GET'], view_func=EbookSyncOutput.as_view("ebk_sync_output"))
+	app.add_url_rule("/ebk_sync_output", methods=['POST'], view_func=EbookSyncOutput.as_view("ebk_sync_output"))
 	app.add_url_rule("/ebk_cover", methods=['POST'], view_func=EbookCover.as_view("ebk_cover"))
 	app.add_url_rule("/ebk_cover_url", methods=['POST'], view_func=EbookCoverUrl.as_view("ebk_cover_url"))
 	app.add_url_rule("/ebk_convert_task", methods=['POST'], view_func=EbookConverterTask.as_view("ebk_convert_task"))

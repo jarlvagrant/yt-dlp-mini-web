@@ -63,6 +63,11 @@
           <textarea id="chap{{ url }}" cols="40" style="min-height: 80px" placeholder="章节预览：">{{ status.chapter }}</textarea>
         </td>
       </tr>
+      <tr>
+        <td colspan="3">
+          <p id="message{{ url }}" style="white-space: pre-wrap; overflow-y: scroll; height: 40px; font-size: 0.8rem; margin: 0">{{ status.message }}</p>
+        </td>
+      </tr>
     </table>
   </div>
   {% endfor %}
