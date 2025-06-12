@@ -310,9 +310,9 @@ class EbookRemoveItem(View):
 def remove_cached_files(item):
 	if not item:
 		return
-	txt = item.get("txt")
-	if txt and os.path.isfile(txt):
-		os.remove(txt)
+	# txt = item.get("txt")
+	# if txt and os.path.isfile(txt):
+	# 	os.remove(txt)
 	image = item.get("image")
 	if image and os.path.isfile(image):
 		os.remove(image)
