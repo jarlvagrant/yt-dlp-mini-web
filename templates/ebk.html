@@ -93,6 +93,8 @@
         $.post("/ebk_cover_url", json_data, function (response) {
             if (response.code === 200) {
                 console.log("Got cover: " + image_id);
+            } else {
+                console.log("Failed fetching cover: " + image_id);
             }
         })
     }
@@ -110,6 +112,8 @@
         const response = await fetch("/ebk_cover", {method: "POST", body: formData})
         if (response.status === 200) {
             console.log("Got cover: " + image_id);
+        } else {
+            console.log("Failed loading cover: " + image_id);
         }
     }
 
@@ -210,12 +214,14 @@
         };
         console.log(data);
         $.post("/ebk_convert_task", data, function (response) {
-            if (response.code === 200) {
-                console.log("Done convert " + part);
+            if (response.epub && response.epub.length > 0) {
+                document.getElementById("epub" + part).href = "ebk_download?file_path=" + response.epub;
+            }
+            if (response.message && response.message.length > 0) {
+                document.getElementById("message" + part).innerText = response.message;
+            }
+            if (response.chapter && response.chapter.length > 0) {
                 document.getElementById('info' + part).value = response.chapter;
-                if (response.epub && response.epub.length > 0) {
-                    document.getElementById("epub" + part).href = "ebk_download?file_path=" + response.epub;
-                }
             }
         });
     }

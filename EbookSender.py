@@ -23,10 +23,10 @@ class LocalBookStatus:
 
 	def add(self, key):
 		if not self.status.get(key):
-			self.status[key] = {"intro": "", "image": "", "txt": "", "epub": "", "chapter": ""}
+			self.status[key] = {"is_collapsed": "", "intro": "", "image": "", "txt": "", "epub": "", "chapter": "", "message": ""}
 
 	def remove(self, key):
-		self.status.pop(key, None)
+		return self.status.pop(key, None)
 
 	def get_value(self, key, sub_key):
 		item = self.status.get(key)
@@ -58,8 +58,8 @@ class LocalBookStatus:
 class UrlBookStatus(LocalBookStatus):
 	def add(self, key):
 		if not self.status.get(key):
-			self.status[key] = {"content": "", "chapter": "", "thread": Thread(), "image": "", "txt": "", "epub": "",
-			                    "message": "", "intro": "", "is_collapsed": ""}
+			self.status[key] = {"intro": "", "is_collapsed": "", "content": "", "chapter": "", "thread": Thread(),
+			                    "image": "", "txt": "", "epub": "", "message": ""}
 
 
 local_book_dict = LocalBookStatus()
@@ -200,11 +200,12 @@ def extractor_worker(url, args):
 	image_path = url_book_dict.get_value(url, "image")
 
 	print(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
-	url_book_dict.set_value(url, "message", url_book_dict.get_value(url, "message") + f"[INFO]: Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+	url_book_dict.set_value(url, "message", url_book_dict.get_value(url, "message") + f"[INFO]: Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}\n")
 	converter = EpubConverter(text, title, author, tags, des, image_path)
 	output = converter.convert()
 	url_book_dict.set_value(url, "epub", output)
 	url_book_dict.set_value(url, "chapter", converter.info)
+	url_book_dict.set_value(url, "message", url_book_dict.get_value(url, "message") + converter.message)
 
 
 class EbookEmail(View):
@@ -221,6 +222,9 @@ class EbookEmail(View):
 				sender = SendEmail(value)
 				code = 400 if not sender.send() else code
 				message += sender.message + "\n"
+			else:
+				print(f"Failed sending email: {key}->{sub_key} not found!")
+				message += f"Failed sending email: {key}->{sub_key} not found!\n"
 		return jsonify(code=code, message=message)
 
 
@@ -239,12 +243,13 @@ class EbookConverterTask(View):
 			image_path = None
 		_, author, tags, des = get_meta_data(intro, data)
 		print(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
-		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des),
-		                          image_path)
+		message = f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}\n"
+		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des), image_path)
 		output = converter.convert()
 		local_book_dict.set_value(key, "epub", output)
 		local_book_dict.set_value(key, "chapter", converter.info)
-		return jsonify(code=200, chapter=converter.info, epub=output)
+		local_book_dict.set_value(key, "message", message + converter.message)
+		return jsonify(code=200, chapter=converter.info, message=message + converter.message, epub=output)
 
 
 class EbookCover(View):
@@ -288,12 +293,29 @@ class EbookRemoveItem(View):
 		key = request.form.get('key')
 		to_all = request.form.get('all')
 		if to_all:
+			for item in url_book_dict.status:
+				remove_cached_files(item)
+			for item in local_book_dict.status:
+				remove_cached_files(item)
 			url_book_dict.status.clear()
 			local_book_dict.status.clear()
 		else:
-			url_book_dict.remove(key)
-			local_book_dict.remove(key)
+			item = url_book_dict.remove(key)
+			remove_cached_files(item)
+			item = local_book_dict.remove(key)
+			remove_cached_files(item)
 		return jsonify(code=200)
+
+
+def remove_cached_files(item):
+	if not item:
+		return
+	txt = item.get("txt")
+	if txt and os.path.isfile(txt):
+		os.remove(txt)
+	image = item.get("image")
+	if image and os.path.isfile(image):
+		os.remove(image)
 
 
 def get_meta_data(intro, data):
@@ -480,7 +502,12 @@ class EpubConverter:
 		# write_text_file("\n".join([f"《{self.title}》作者：{self.author}", f"内容标签：{self.tags}", self.des, self.data]),
 		#                 os.path.join(self.path, self.title + ".txt"))
 		self.info = ""
+		self.message = ""
 		self.ebook = epub.EpubBook()
+
+	def set_message(self, message):
+		print("[INFO]: " +  message)
+		self.message += "[INFO]: " +  message + "\n"
 
 	def get_chaps(self, indices):
 		chaps = ()
@@ -537,12 +564,12 @@ class EpubConverter:
 
 	def convert(self):
 		if not self.data:
-			print("Error: the resource txt file has no content")
+			self.set_message("Error: the resource txt file has no content")
 			return ""
 		if not self.title:
-			print("Error: can not convert txt file with no title")
+			self.set_message("Error: can not convert txt file with no title")
 			return ""
-		print(f"initiating txt to epub converting of {self.title}, author: {self.author} length {len(self.data)}")
+		self.set_message(f"initiating txt to epub converting of {self.title}, author: {self.author} length {len(self.data)}")
 
 		# set metadata
 		self.ebook.set_identifier(self.title + self.author)
@@ -586,7 +613,7 @@ class EpubConverter:
 		# write to the file
 		file_path = os.path.join(self.path, self.title + ".epub")
 		epub.write_epub(file_path, self.ebook, {})
-		print(f"Success: {self.title} converting done. number of chapters: {len(indices)}")
+		self.set_message(f"Success: {self.title} converting done. number of chapters: {len(indices)}")
 		return file_path
 
 
@@ -682,6 +709,7 @@ class EbookWebExtractor:
 			if not self.split_utl.netloc in href:  # not all href contain the host location
 				href = self.split_utl.netloc + href
 			url = href
+			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
 		return text
 
 	def set_pages_index(self):
