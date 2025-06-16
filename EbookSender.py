@@ -97,6 +97,24 @@ class EbookSyncOutput(View):
 		stop = False if t and t.is_alive() else True
 		return jsonify(code=200, message=message, content=content, stop=stop)
 
+class EbookServerFiles(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		type_txt = request.form.get("txt", default=False, type=bool)
+		type_epub = request.form.get("epub", default=False, type=bool)
+		type_pdf = request.form.get("pdf", default=False, type=bool)
+		type_mobi = request.form.get("mobi", default=False, type=bool)
+		type_azw = request.form.get("azw", default=False, type=bool)
+		print(f"file_type {type_txt} {type_epub} {type_pdf} {type_mobi} {type_azw}")
+		path = ConfigIO.get("ebook_dir")
+		files = {}
+		if not os.path.isdir(path):
+			print(f"Invalid upload path: {path}")
+			return Response(f'Invalid upload path: {path}', status=404)
+		else:
+			for f in os.listdir():
+				filename, file_extension = os.path.splitext(f)
+		return render_template("ebk_listfiles.html", files={k: ["epub", "txt"] for k in os.listdir()})
+
 class EbookUploads(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		if request.method == "POST":
@@ -293,10 +311,10 @@ class EbookRemoveItem(View):
 		key = request.form.get('key')
 		to_all = request.form.get('all')
 		if to_all:
-			for item in url_book_dict.status:
-				remove_cached_files(item)
-			for item in local_book_dict.status:
-				remove_cached_files(item)
+			for k, v in url_book_dict.status.items():
+				remove_cached_files(v)
+			for k, v in local_book_dict.status.items():
+				remove_cached_files(v)
 			url_book_dict.status.clear()
 			local_book_dict.status.clear()
 		else:

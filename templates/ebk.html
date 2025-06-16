@@ -30,10 +30,27 @@
         </form>
     </tr>
     <tr>
-        <td>From url: <input class="table" name="ebook_url" id="ebook_url" style="min-width: 30rem;"
+        <td>From url:<input class="table" name="ebook_url" id="ebook_url" style="min-width: 30rem;margin-left: 29px"
                              placeholder="http://some_ebook_url"></td>
         <td>
             <button onclick="add_extract_url(this)" style="min-width: 8rem;">Add url</button>
+        </td>
+    </tr>
+    <tr>
+        <td>Server files:
+            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_epub" checked/>
+            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_epub">epub</label>
+            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_txt" checked/>
+            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_txt">txt</label>
+            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_pdf" checked/>
+            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_pdf">pdf</label>
+            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_mobi" checked/>
+            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_mobi">mobi</label>
+            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_azw" checked/>
+            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_azw">azw</label>
+        </td>
+        <td>
+            <button onclick="list_server_files()" style="min-width: 8rem;">Load</button>
         </td>
     </tr>
 </table>
@@ -45,6 +62,7 @@
 </div>
 <div id="uploads"></div>
 <div id="urls"></div>
+<div id="listfiles"></div>
 <div id="contextMenu" class="context-menu" style="display:none">
     <ul>
         <li id="context_menu_extract">Extract</li>
@@ -58,6 +76,7 @@
 
     $("#uploads").load("/ebk_uploads");
     $("#urls").load("/ebk_urls");
+    $("#listfiles").load("/ebk_list_server_files");
 
     function sync_input(event) {
         let sub_key = event.target.name
@@ -164,6 +183,10 @@
             'content_tag_k': document.getElementById('content_tag_k' + part).value,
             'content_tag_v': document.getElementById('content_tag_v' + part).value
         };
+        if (document.getElementById('txt' + part).href) {
+            let answer = confirm(part + " txt exist, overwrite?")
+            if (answer === false) return;
+        }
         console.log(data);
         $.post("/ebk_extractor_task", data, function (response) {
             if (response.code === 200) {
@@ -212,6 +235,10 @@
             'key': part,
             'intro': document.getElementById('intro' + part).value
         };
+        if (document.getElementById("epub" + part).href) {
+            let answer = confirm(part + ": Epub file exists, overwrite?");
+            if (answer === false) return;
+        }
         console.log(data);
         $.post("/ebk_convert_task", data, function (response) {
             if (response.epub && response.epub.length > 0) {
@@ -250,6 +277,24 @@
                 console.log("Sync input " + input.innerText + ": is_collapsed" + "=" + value);
             }
         })
+    }
+
+    function list_server_files() {
+        let data = {
+            'txt' : document.getElementById('file_ext_txt').checked,
+            'epub' : document.getElementById('file_ext_epub').checked,
+            'pdf' : document.getElementById('file_ext_pdf').checked,
+            'mobi' : document.getElementById('file_ext_mobi').checked,
+            'azw' : document.getElementById('file_ext_azw').checked,
+        }
+        $("#listfiles").load("/ebk_list_server_files", data, function (response) {
+            if (response.code === 200) {
+
+            }
+        })
+        // $.get("/ebk_list_server_files", {'type':type}, function (response) {
+        //
+        // })
     }
 
     async function upload_ebooks() {
@@ -304,6 +349,11 @@
             keys.push(items[i].innerText)
         }
         console.log(keys);
+        let answer = true;
+        if (keys.length > 3) {
+            answer = confirm("Confirm to email " + keys.length + " epubs:\n" + keys.join("\n"));
+        }
+        if (answer === false) return;
         $.post("ebk_email", {'keys': keys, 'sub_key': 'epub'}, function (response) {
             window.alert(response.message);
         })
@@ -321,6 +371,8 @@
     }
 
     function remove_all() {
+        let answer = confirm("Confirm to remove everything in the list!");
+        if (answer === false) return;
         $.post("ebk_remove", {'all': true}, function (response) {
             $("#uploads").load("/ebk_uploads");
             $("#urls").load("/ebk_urls");
