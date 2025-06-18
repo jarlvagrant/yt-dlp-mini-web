@@ -7,8 +7,8 @@
 {% endblock %}
 <div id="files_to_convert" style="padding-left: 12px">
     {% for file, status in txt_files.items() %}
-    <button type="button" class="collapsible" name="collapsible_local" onclick="toggle_collapse(this)" oncontextmenu="onItemMenu(event)">{{ file }}</button>
-    <div class="collapsible_content">
+    <button type="button" class="collapsible {{ status.is_collapsed }}" name="collapsible_local" onclick="toggle_collapse(this)" oncontextmenu="onItemMenu(event)">{{ file }}</button>
+    <div class="collapsible_content" {% if status.is_collapsed %}style="display:block"{% endif %}>
         <label class="gray">Optional meta info:</label>
         <a class="epub" id="epub{{ file }}" {% if status.epub %}href="{{ url_for('ebk_download', file_path=status.epub) }}"{% endif %} download="" style="float: right; margin-right: 2em">EPUB</a>
         <a id="txt{{ file }}" href="{{ url_for('ebk_download', file_path=status.txt) }}" download="{{ file }}" style="float: right; margin-right: 2em">TXT</a>

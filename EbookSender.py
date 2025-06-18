@@ -14,7 +14,7 @@ from flask import typing as ft, render_template, Response, request, jsonify, fla
 from flask.views import View
 from requests import HTTPError
 
-from Utils import ConfigIO, UA, SendEmail, getInitialSubfolders, getInitialFolder, getTime
+from Utils import ConfigIO, UA, SendEmail, getInitialSubfolders, getInitialFolder
 
 
 class LocalBookStatus:
@@ -99,21 +99,27 @@ class EbookSyncOutput(View):
 
 class EbookServerFiles(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		type_txt = request.form.get("txt", default=False, type=bool)
-		type_epub = request.form.get("epub", default=False, type=bool)
-		type_pdf = request.form.get("pdf", default=False, type=bool)
-		type_mobi = request.form.get("mobi", default=False, type=bool)
-		type_azw = request.form.get("azw", default=False, type=bool)
-		print(f"file_type {type_txt} {type_epub} {type_pdf} {type_mobi} {type_azw}")
+		# type_txt = request.form.get("txt", default=False, type=bool)
+		# type_epub = request.form.get("epub", default=False, type=bool)
+		# type_pdf = request.form.get("pdf", default=False, type=bool)
+		# type_mobi = request.form.get("mobi", default=False, type=bool)
+		# type_azw = request.form.get("azw", default=False, type=bool)
+		# print(f"file_type {type_txt} {type_epub} {type_pdf} {type_mobi} {type_azw}")
 		path = ConfigIO.get("ebook_dir")
-		files = {}
+		files = {} # {file_name: {file_type: file_path}}
 		if not os.path.isdir(path):
 			print(f"Invalid upload path: {path}")
 			return Response(f'Invalid upload path: {path}', status=404)
 		else:
-			for f in os.listdir():
-				filename, file_extension = os.path.splitext(f)
-		return render_template("ebk_listfiles.html", files={k: ["epub", "txt"] for k in os.listdir()})
+			for f in os.listdir(path):
+				if os.path.isfile(os.path.join(path, f)):
+					file_name, file_extension = os.path.splitext(f)
+					file_extension = file_extension.lstrip('.')
+					if not files.get(file_name):
+						files[file_name] = {'epub':'', 'txt':'', 'pdf':'', 'mobi':'', 'azw':''}
+					files[file_name][file_extension] = os.path.join(path, f)
+			print(files)
+		return render_template("ebk_listfiles.html", files=files)
 
 class EbookUploads(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:

@@ -37,20 +37,11 @@
         </td>
     </tr>
     <tr>
-        <td>Server files:
-            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_epub" checked/>
-            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_epub">epub</label>
-            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_txt" checked/>
-            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_txt">txt</label>
-            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_pdf" checked/>
-            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_pdf">pdf</label>
-            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_mobi" checked/>
-            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_mobi">mobi</label>
-            <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_azw" checked/>
-            <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_azw">azw</label>
-        </td>
+        <td>Server files:</td>
         <td>
-            <button onclick="list_server_files()" style="min-width: 8rem;">Load</button>
+            <a href="{{ url_for('ebk_list_server_files') }}">
+                <button style="min-width: 8rem;">Load</button>
+            </a>
         </td>
     </tr>
 </table>
@@ -76,7 +67,6 @@
 
     $("#uploads").load("/ebk_uploads");
     $("#urls").load("/ebk_urls");
-    $("#listfiles").load("/ebk_list_server_files");
 
     function sync_input(event) {
         let sub_key = event.target.name
@@ -277,24 +267,6 @@
                 console.log("Sync input " + input.innerText + ": is_collapsed" + "=" + value);
             }
         })
-    }
-
-    function list_server_files() {
-        let data = {
-            'txt' : document.getElementById('file_ext_txt').checked,
-            'epub' : document.getElementById('file_ext_epub').checked,
-            'pdf' : document.getElementById('file_ext_pdf').checked,
-            'mobi' : document.getElementById('file_ext_mobi').checked,
-            'azw' : document.getElementById('file_ext_azw').checked,
-        }
-        $("#listfiles").load("/ebk_list_server_files", data, function (response) {
-            if (response.code === 200) {
-
-            }
-        })
-        // $.get("/ebk_list_server_files", {'type':type}, function (response) {
-        //
-        // })
     }
 
     async function upload_ebooks() {

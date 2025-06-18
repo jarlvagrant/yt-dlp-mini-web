@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 from fake_useragent import UserAgent
 
-config_file = "config.json"
+config_file = "configs/config.json"
 book_csv_file = "books.csv"
 book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'created']
 
@@ -113,6 +113,19 @@ class CsvIO:
 				return False
 		return True
 
+class Logger:
+	def __init__(self, module, task):
+		self.module = module
+		self.task = task
+		self.message = ""
+
+	def info(self, message):
+		print(f"[INFO]: " +  message)
+		self.message += "[INFO]: " +  message + "\n"
+
+	def error(self, message):
+		print(f"[ERROR]: " + message)
+		self.message += "[ERROR]: " + message + "\n"
 
 ConfigIO = JsonIO(config_file)
 BooksIO = CsvIO(book_csv_file, book_csv_columns)
