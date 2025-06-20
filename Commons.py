@@ -1,9 +1,15 @@
 import os
 
-from flask import typing as ft, render_template, Response, request, jsonify, url_for, flash, send_from_directory
+from flask import typing as ft, request, jsonify
 from flask.views import View
 
 from Utils import ConfigIO, getSubfolders
+
+class LogView(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		print("log view ")
+		print(request)
+		return jsonify(code=200, message="Log view")
 
 
 class UpdateConfig(View):

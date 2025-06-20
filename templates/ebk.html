@@ -6,7 +6,7 @@
     <div id="epub_folder">
         <label class="gray" for="ebook_dir" style="margin-right: 5px">Save to: </label>
         <input class="gray" id="ebook_dir" value="{{ ebook_dir }}" onfocusout="validate_path(event)"/>
-        <select class="gray" style="width:26px" onchange="folder_selected(event)">
+        <select class="gray" onchange="folder_selected(event)" style="width:26px">
             {% for folder in folders %}
             <option value={{ folder }}>{{ folder }}</option>
             {% endfor %}
@@ -49,7 +49,8 @@
     <button type="button" id="extract_content_all" style="margin-right: 1em" onclick="extract_content_all()">Extract all</button>
     <button type="button" id="convert_all" style="margin-right: 1em" onclick="convert_all()">Convert all</button>
     <button type="button" id="send_all" style="margin-right: 1em" onclick="email_epub_all()">Email epubs</button>
-    <button type="button" id="remove_all" onclick="remove_all()">Clear</button>
+    <button type="button" id="remove_all" style="margin-right: 1em" onclick="remove_all()">Clear</button>
+    <a href="{{ url_for('ebk_download', file_path=log) }}" target="_blank"><button type="button" id="log">Log</button></a>
 </div>
 <div id="uploads"></div>
 <div id="urls"></div>
@@ -200,17 +201,22 @@
         let refresher_id = setInterval(function () {
             $.post("/ebk_sync_output", {'key': url}, function (response) {
                 if (response.code === 200) {
-                    let content_e = document.getElementById('content' + url);
-                    let message_e = document.getElementById('message' + url);
-                    if (content_e.value !== response.content) {
-                        content_e.value = response.content;
+                    if (response.content && response.content.length > 0) {
+                        document.getElementById('content' + url).value = response.content;
                     }
-                    if (message_e.innerText !== response.message) {
-                        message_e.innerText = response.message;
+                    if (response.chapter && response.chapter.length > 0) {
+                        document.getElementById('chap' + url).value = response.chapter;
+                    }
+                    if (response.txt && response.txt.length > 0) {
+                        document.getElementById("txt" + url).href = "ebk_download?file_path=" + response.txt;
+                        document.getElementById("txt" + url).style.color = "#377ba8";
+                    }
+                    if (response.epub && response.epub.length > 0) {
+                        document.getElementById("epub" + url).href = "ebk_download?file_path=" + response.epub;
+                        document.getElementById("epub" + url).style.color = "#377ba8";
                     }
                     if (response.stop === true) {
                         console.log("last refresh for extractor");
-                        $("#urls").load("/ebk_urls");
                         clearInterval(refresher_id);
                     }
                 }
@@ -233,6 +239,7 @@
         $.post("/ebk_convert_task", data, function (response) {
             if (response.epub && response.epub.length > 0) {
                 document.getElementById("epub" + part).href = "ebk_download?file_path=" + response.epub;
+                document.getElementById("epub" + part).style.color = "#377ba8";
             }
             if (response.message && response.message.length > 0) {
                 document.getElementById("message" + part).innerText = response.message;
@@ -350,6 +357,5 @@
             $("#urls").load("/ebk_urls");
         });
     }
-
 </script>
 {% endblock %}

@@ -221,7 +221,6 @@ input[type=submit] {
 }
 
 .collapsible:after {
-  content: '\002B';
   color: white;
   font-weight: bold;
   float: right;
@@ -236,7 +235,7 @@ input[type=submit] {
   padding: 8px;
   display: none;
   overflow: hidden;
-  background-color: #eee;
+  background-color: #f0f5fc;
 }
 
 table {
