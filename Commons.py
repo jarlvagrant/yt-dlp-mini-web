@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import typing as ft, request, jsonify
@@ -5,11 +6,8 @@ from flask.views import View
 
 from Utils import ConfigIO, getSubfolders
 
-class LogView(View):
-	def dispatch_request(self) -> ft.ResponseReturnValue:
-		print("log view ")
-		print(request)
-		return jsonify(code=200, message="Log view")
+
+logger = logging.getLogger(__name__)
 
 
 class UpdateConfig(View):
@@ -20,7 +18,7 @@ class UpdateConfig(View):
 			ConfigIO.set(keys[0], value)
 		else:
 			ConfigIO.set(keys[0], value, subkey=keys[1])
-		print(f"Updating config: {keys} = {value}")
+		logger.debug(f"Updating config: {keys} = {value}")
 		return jsonify(code=200)
 
 
@@ -38,7 +36,7 @@ class UpdateDir(View):
 		if os.path.isdir(new_path):
 			code = 200
 			ConfigIO.set(dir_type, new_path)
-		print(f"Updating directory: {dir_type} = {new_path}, code = {code}")
+		logger.debug(f"Updating directory: {dir_type} = {new_path}, code = {code}")
 		return jsonify(code=code)
 
 
@@ -46,5 +44,5 @@ class ListSubfolders(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		cur_dir = request.form.get("cur_dir")
 		folders = getSubfolders(cur_dir)
-		print(f"List subfolders of {cur_dir}: {folders}")
+		logger.debug(f"List subfolders of {cur_dir}: {folders}")
 		return jsonify(cur_dir=cur_dir, folders=folders)

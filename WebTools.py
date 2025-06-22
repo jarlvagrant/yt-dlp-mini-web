@@ -7,7 +7,7 @@ from flask import Flask, render_template
 from flask.views import View
 from werkzeug.serving import WSGIRequestHandler
 
-from Commons import UpdateDir, UpdateConfig, ListSubfolders, LogView
+from Commons import UpdateDir, UpdateConfig, ListSubfolders
 from EbookSender import EBook, EbookUploads, EbookConverterTask, EbookCover, EbookCoverUrl, EbookEmail, \
 	EbookUrls, EbookExtractorTask, EbookSyncInput, EbookDownload, EbookRemoveItem, EbookSyncOutput, EbookServerFiles
 from Utils import log_path, log_file
@@ -48,7 +48,6 @@ def main():
 	app = Flask(__name__)
 	app.secret_key = 'mimamuahilachocobooooo'
 	app.add_url_rule("/", view_func=Index.as_view("index"))
-	app.add_url_rule("/log", methods=['GET'], view_func=LogView.as_view("log"))
 	app.add_url_rule("/update_dir", methods=['POST'], view_func=UpdateDir.as_view("update_dir"))
 	app.add_url_rule("/update_config", methods=['POST'], view_func=UpdateConfig.as_view("update_config"))
 	app.add_url_rule("/list_subfolders", methods=['POST'], view_func=ListSubfolders.as_view("list_subfolders"))

@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from multiprocessing import Process, Queue
@@ -7,6 +8,8 @@ from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
 
 from Utils import ConfigIO, getInitialFolder, getSubfolders
+
+logger = logging.getLogger(__name__)
 
 tasks = []
 
@@ -67,7 +70,7 @@ class TaskMaker(View):
 		self.playlist_items = request.form.get("playlist_items", "")
 
 		self.code = 200
-		self.message = ""
+		self.message = "success"
 
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		if self.action == "start":
@@ -106,7 +109,7 @@ class TaskMaker(View):
 			for task in tasks[:]: # make a copy of the list to avoid skippint items
 				if task.status['state'] == 'complete':
 					tasks.remove(task)
-		print(f"[Task] {self.action} {self.url} {self.code} {self.message}")
+		logger.info(f"Task {self.action}: url={self.url} code={self.code} message={self.message}")
 		return jsonify(code=self.code, message=self.message)
 
 	def get_task(self) -> Task | None:
@@ -129,8 +132,15 @@ class Progress(View):
 			if task.queue:
 				while not task.queue.empty():
 					k, v = task.queue.get_nowait()
-					if k == "error":
-						task.status[k] = task.status[k] + v
+					if k == "info":
+						logger.info(v)
+						task.status[k] = v
+					elif k == "warning":
+						logger.warning(v)
+						task.status["error"] = task.status["error"] + v
+					elif k == "error":
+						task.status["error"] = task.status["error"] + v
+						logger.error(v)
 					else:
 						task.status[k] = v
 			prog_dict[task.url] = task.status
@@ -155,34 +165,44 @@ class Downloader:
 		self.output_dir = output_dir
 		self.playlist_items = playlist_items
 		self.queue = queue
-		self.download_video()
 		self.title = ""
+		self.download_video()
 
 	def download_video(self):
+		logger.info(f"Downloading {self.url}: ext={self.ext} output={self.output_dir} playlist_items{self.playlist_items}" )
 		with yt_dlp.YoutubeDL({'extract_flat': "in_playlist"}) as ydl:
 			info_dict = ydl.extract_info(self.url, download=False)
 			self.title = info_dict.get('title', '')
 			self.queue.put(('title', self.title))
 			ydl.close()
 
-		print("[Downloader] Requested format %s; output directory %s." % (self.ext, self.output_dir))
 		ydl_opts = {
 			"outtmpl": self.output_dir + "/%(title)s.%(ext)s",
 			"playlist_items" : self.playlist_items,
 			'logger': MyLogger(self.queue),
 			'format': self.ext,
+			"progress_hooks": [dl_progress_hook],
+			"postprocessor_hooks": [dl_postprocessor_hook]
 		}
 		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 			error = ydl.download(self.url)
 			ydl.close()
-			if error != 0:
-				self.queue.put(('info', "Downloading failed!"))
-			else:
-				self.queue.put(('width', f"width:100%"))
-				self.queue.put(('info', "Download completed"))
-			self.queue.put(('state', 'complete'))
-			print(f"[Downloader] Downloading completed: {self.title}")
+		if error != 0:
+			self.queue.put(('info', "Downloading failed!"))
+		else:
+			self.queue.put(('width', f"width:100%"))
+			self.queue.put(('info', "Download completed"))
+		self.queue.put(('state', 'complete'))
 
+def dl_progress_hook(d):
+	if d["status"] == "finished":
+		logger.info(f"Downloading completed:")
+
+def dl_postprocessor_hook(d):
+	if d["status"] == "started":
+		logger.info(f"Post-processing started:")
+	if d["status"] == "finished":
+		logger.info(f"Post-processing completed: ")
 
 class MyLogger:
 	def __init__(self, queue):
@@ -203,7 +223,7 @@ class MyLogger:
 			self.queue.put(('width', f"width:{temp.group()}"))
 
 	def warning(self, msg):
-		self.queue.put(('error', msg))
+		self.queue.put(('warning', msg))
 
 	def error(self, msg):
 		self.queue.put(('error', msg))

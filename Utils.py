@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import os
 import smtplib
 from email.message import EmailMessage
@@ -16,6 +17,9 @@ book_csv_file = "books.csv"
 book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'created']
 
 
+logger = logging.getLogger(__name__)
+
+
 def getDate():
 	return datetime.date.today().__str__()
 
@@ -28,14 +32,14 @@ class UserAgentGen(UserAgent):
 	def __init__(self):
 		super().__init__()
 		self.ua = self.random
-		print(f"User Agent: {self.ua}")
+		logger.debug(f"User Agent: {self.ua}")
 
 	def get(self):
 		return self.ua
 
 	def renew(self):
 		self.ua = self.random
-		print(f"User Agent: {self.ua}")
+		logger.debug(f"User Agent: {self.ua}")
 
 
 UA = UserAgentGen()
@@ -189,13 +193,13 @@ class SendEmail:
 
 	def send(self):
 		if not os.path.isfile(self.filepath):
-			print(f"Invalid file path: {self.filepath}")
+			logger.error(f"Invalid file path: {self.filepath}")
 			self.message = f"Invalid file path: {self.filepath}"
 			return False
 
 		email = ConfigIO.get("email")
 		if not email or None in [email.get(key, None) for key in ["from", "to", "host", "port", "secret"]]:
-			print(f"Invalid email config in config.json: please check keys: from, to, host, port, secret")
+			logger.error(f"Invalid email config in config.json: please check keys: from, to, host, port, secret")
 			self.message = f"Invalid email config in config.json: please check keys: from, to, host, port, secret"
 			return False
 		msg = EmailMessage()
@@ -212,6 +216,6 @@ class SendEmail:
 			smtp.login(email.get("from"), email.get("secret"))
 			smtp.send_message(msg=msg)
 			smtp.quit()
-		print(f"Emailed {filename} to {email.get('to')}")
+		logger.info(f"Emailed {filename} to {email.get('to')}")
 		self.message = f"Emailed {filename} to {email.get('to')}"
 		return True
