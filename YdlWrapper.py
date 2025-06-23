@@ -133,14 +133,15 @@ class Progress(View):
 				while not task.queue.empty():
 					k, v = task.queue.get_nowait()
 					if k == "info":
-						logger.info(v)
+						if not v.startswith("[download]"):
+							logger.info(v)
 						task.status[k] = v
 					elif k == "warning":
 						logger.warning(v)
 						task.status["error"] = task.status["error"] + v
 					elif k == "error":
-						task.status["error"] = task.status["error"] + v
 						logger.error(v)
+						task.status["error"] = task.status["error"] + v
 					else:
 						task.status[k] = v
 			prog_dict[task.url] = task.status
@@ -181,28 +182,17 @@ class Downloader:
 			"playlist_items" : self.playlist_items,
 			'logger': MyLogger(self.queue),
 			'format': self.ext,
-			"progress_hooks": [dl_progress_hook],
-			"postprocessor_hooks": [dl_postprocessor_hook]
 		}
 		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 			error = ydl.download(self.url)
 			ydl.close()
 		if error != 0:
-			self.queue.put(('info', "Downloading failed!"))
+			self.queue.put(('info', f"Downloading failed: {self.title}"))
 		else:
 			self.queue.put(('width', f"width:100%"))
-			self.queue.put(('info', "Download completed"))
+			self.queue.put(('info', f"Download completed: {self.title}"))
 		self.queue.put(('state', 'complete'))
 
-def dl_progress_hook(d):
-	if d["status"] == "finished":
-		logger.info(f"Downloading completed:")
-
-def dl_postprocessor_hook(d):
-	if d["status"] == "started":
-		logger.info(f"Post-processing started:")
-	if d["status"] == "finished":
-		logger.info(f"Post-processing completed: ")
 
 class MyLogger:
 	def __init__(self, queue):
