@@ -218,6 +218,9 @@
                     if (response.stop === true) {
                         console.log("last refresh for extractor");
                         clearInterval(refresher_id);
+                        if (response.message !== "") {
+                            alert(response.message);
+                        }
                     }
                 }
             })
@@ -241,11 +244,11 @@
                 document.getElementById("epub" + part).href = "ebk_download?file_path=" + response.epub;
                 document.getElementById("epub" + part).style.color = "#377ba8";
             }
-            if (response.message && response.message.length > 0) {
-                document.getElementById("message" + part).innerText = response.message;
-            }
             if (response.chapter && response.chapter.length > 0) {
                 document.getElementById('info' + part).value = response.chapter;
+            }
+            if (response.message && response.message.length > 0) {
+                alert(response.message);
             }
         });
     }

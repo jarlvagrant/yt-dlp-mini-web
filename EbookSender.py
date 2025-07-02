@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import threading
+from chinese_converter import traditional
 from pathlib import Path
 from threading import Thread
 from time import sleep
@@ -15,7 +16,7 @@ from flask import typing as ft, render_template, Response, request, jsonify, sen
 from flask.views import View
 from requests import HTTPError
 
-from Utils import ConfigIO, UA, SendEmail, getInitialFolder, getSubfolders, log_path, log_file
+from Utils import ConfigIO, UA, SendEmail, getInitialFolder, getSubfolders, log_path
 
 
 logger = logging.getLogger(__name__)
@@ -58,10 +59,15 @@ class LocalBookStatus:
 		if item:
 			item[sub_key] = value
 
+	def append_value_if_key(self, key, sub_key, value):
+		item = self.status.get(key)
+		if item:
+			item[sub_key] = value if item[sub_key] is None else item[sub_key] + "\n" + value
+
 class UrlBookStatus(LocalBookStatus):
 	def add(self, key):
 		if not self.status.get(key):
-			self.status[key] = {"intro": "", "is_collapsed": "", "content": "", "chapter": "", "thread": Thread(),
+			self.status[key] = {"intro": "", "is_collapsed": "", "content": "", "chapter": "", "thread": Thread(), "message":"",
 			                    "image": "", "txt": "", "epub": ""}
 
 
@@ -97,9 +103,11 @@ class EbookSyncOutput(View):
 		e_pub = url_book_dict.get_value_if_key(key, 'epub')
 		txt = url_book_dict.get_value_if_key(key, 'txt')
 		t = url_book_dict.get_value_if_key(key, 'thread')
+		message = url_book_dict.get_value_if_key(key, 'message')
 		stop = False if t and t.is_alive() else True
-		return jsonify(code=200, content=content, chapter=chapter, txt=txt, epub=e_pub, stop=stop)
+		return jsonify(code=200, content=content, chapter=chapter, txt=txt, epub=e_pub, stop=stop, message=message)
 
+file_types = ['epub', 'txt', 'pdf', 'mobi', 'azw']
 class EbookServerFiles(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		# type_txt = request.form.get("txt", default=False, type=bool)
@@ -118,9 +126,10 @@ class EbookServerFiles(View):
 				if os.path.isfile(os.path.join(path, f)):
 					file_name, file_extension = os.path.splitext(f)
 					file_extension = file_extension.lstrip('.')
-					if not files.get(file_name):
-						files[file_name] = {'epub':'', 'txt':'', 'pdf':'', 'mobi':'', 'azw':''}
-					files[file_name][file_extension] = os.path.join(path, f)
+					if file_extension in file_types:
+						if not files.get(file_name):
+							files[file_name] = {key: "" for key in file_types}
+						files[file_name][file_extension] = os.path.join(path, f)
 		return render_template("ebk_listfiles.html", files=files)
 
 class EbookUploads(View):
@@ -209,6 +218,7 @@ def extractor_worker(url, args):
 	text = extractor.extract()
 	content = text[0:2000] if len(text) > 2000 else text
 	url_book_dict.set_value(url, "content", content)
+	url_book_dict.set_value_if_key(url, "message", extractor.error)
 	logger.debug(f"Host {url_netloc} freed")
 	busy_hosts[url_netloc].set()
 
@@ -216,6 +226,7 @@ def extractor_worker(url, args):
 	title, author, tags, des = get_meta_data(args.get("intro"), text)
 	if not title:
 		logger.error(f"Can't save extracted content to file: failed to extract title")
+		url_book_dict.append_value_if_key(url, "message", f"Can't save extracted content to file:  failed to extract title")
 		return
 	txt_path = os.path.join(ConfigIO.get("ebook_dir"), title + ".txt")
 	url_book_dict.set_value(url, "txt", txt_path)
@@ -225,8 +236,17 @@ def extractor_worker(url, args):
 	logger.debug(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
 	converter = EpubConverter(text, title, author, tags, des, image_path)
 	output = converter.convert()
+	if not output:
+		logger.error(f"Can't convert extracted content to epub")
+		url_book_dict.append_value_if_key(url, "message", f"Can't convert extracted content to epub")
+		return
 	url_book_dict.set_value(url, "epub", output)
 	url_book_dict.set_value(url, "chapter", converter.info)
+
+	logger.debug(f"Sending email with attachment {output}")
+	sender = SendEmail(output)
+	sender.send()
+	url_book_dict.append_value_if_key(url, "message", sender.message)
 
 
 class EbookEmail(View):
@@ -268,7 +288,11 @@ class EbookConverterTask(View):
 		output = converter.convert()
 		local_book_dict.set_value(key, "epub", output)
 		local_book_dict.set_value(key, "chapter", converter.info)
-		return jsonify(code=200, chapter=converter.info, epub=output)
+
+		logger.debug(f"Sending email with attachment {output}")
+		sender = SendEmail(output)
+		sender.send()
+		return jsonify(code=200, chapter=converter.info, epub=output, message=sender.message)
 
 
 class EbookCover(View):
@@ -639,6 +663,7 @@ class EbookWebExtractor:
 		self.info = {}
 		self.setup()
 		self.content = ""
+		self.error = ""
 
 	def setup(self):
 		for p in ConfigIO.get("web_parsers"):  # known network location from config
@@ -672,6 +697,7 @@ class EbookWebExtractor:
 	def extract_index(self):
 		if not self.info.get("pages"):
 			logger.error(f"Failed to get pages from index page {self.url}")
+			self.error += f"Failed to get pages from index page {self.url}"
 			return ""
 		logger.info(f"Extracting {len(self.info.get("pages"))} pages from {self.url}")
 		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
@@ -692,6 +718,7 @@ class EbookWebExtractor:
 				url_book_dict.set_value_if_key(self.url, "content", self.content)
 			else:
 				logger.error(f"Failed to extract page {page}, wrong content tag: {attr}")
+				self.error += f"Failed to extract page {page}, wrong content tag: {attr}"
 				break
 			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
 		return text
@@ -705,7 +732,8 @@ class EbookWebExtractor:
 		while True:
 			soup = extractHtmlSoup(url)
 			if not soup:
-				logging.error(f"Failed to download page {url}\n")
+				logger.error(f"Failed to download page {url}\n")
+				self.error += f"Failed to extract page {url}\n"
 				break
 			text_element = soup.find(attrs=attr)
 			if text_element:
@@ -718,6 +746,7 @@ class EbookWebExtractor:
 				url_book_dict.set_value_if_key(self.url, "content", self.content)
 			else:
 				logger.error(f"Failed to extract page {url}, wrong content tag: {attr}")
+				self.error += f"Failed to extract page {url}, wrong content tag: {attr}"
 				break
 			n_element = soup.find(string=n)
 			if not n_element:

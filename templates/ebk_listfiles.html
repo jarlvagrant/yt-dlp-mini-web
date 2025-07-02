@@ -4,17 +4,26 @@
 </a>
 {% block header %}
 <div>
-  <h3 style="display:inline-block">{% block title %}Existing files:{% endblock %}</h3>
-  <input style="margin-bottom: 0; margin-left: 460px" type="checkbox" id="file_ext_epub" checked/>
-  <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_epub">epub</label>
-  <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_txt" checked/>
-  <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_txt">txt</label>
-  <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_pdf" checked/>
-  <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_pdf">pdf</label>
-  <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_mobi" checked/>
-  <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_mobi">mobi</label>
-  <input style="margin-bottom: 0; margin-left: 20px" type="checkbox" id="file_ext_azw" checked/>
-  <label style="margin-bottom: 0; margin-left: 0" class="radio" for="file_ext_azw">azw</label>
+  <h3 style="margin-bottom: 0">{% block title %}Existing files:{% endblock %}</h3>
+</div>
+<div style="font-size: 0.85em">
+  <input type="checkbox" id="select_all" name="select_all" onchange="select_deselect(this)" style="margin-left: 20px">
+  <label for="select_all">Select all</label>
+  <input type="checkbox" id="revert" name="revert" onchange="revert_selected()" style="margin-left: 10px">
+  <label for="revert">Revert</label>
+  <label for="sort_by" style="margin-left: 440px">Sort by</label>
+  <select name="sort_by" id="sort_by">
+    <option value="date">Date: Old &rarr; New</option>
+    <option value="date">Date: New &rarr; Old</option>
+    <option value="size">Size: Small &rarr; Large</option>
+    <option value="size">Size Large &rarr; Small</option>
+  </select>
+  <label for="filter_by" style="margin-left: 10px;">Filter by</label>
+  <select name="filter_by" id="filter_by">
+    <option value="tags">Tags</option>
+    <option value="author">Author</option>
+    <option value="rating">Rating</option>
+  </select>
 </div>
 {% endblock %}
 <div style="padding-left: 12px">
@@ -23,9 +32,9 @@
   {% endif %}
   {% for file_name, file_info in files.items() %}
   <table>
-    <tr>
+    <tr class="{{ loop.cycle('files_odd', 'files_even') }}">
       <td style="width: 2%">
-        <input id="{{ file_name }}" type="checkbox">
+        <input id="{{ file_name }}" type="checkbox" name="file_checkbox">
       </td>
       <td>
         <p style="color: black" oncontextmenu="onItemMenu(event)">{{ file_name }}</p>
@@ -87,18 +96,20 @@
     view.style.display = "block";
   }
 
-  function list_server_files() {
-    let data = {
-      'txt' : document.getElementById('file_ext_txt').checked,
-      'epub' : document.getElementById('file_ext_epub').checked,
-      'pdf' : document.getElementById('file_ext_pdf').checked,
-      'mobi' : document.getElementById('file_ext_mobi').checked,
-      'azw' : document.getElementById('file_ext_azw').checked,
+  function revert_selected() {
+    let all = document.getElementsByName("file_checkbox");
+    for (let i = 0; i < all.length; i++) {
+      all[i].checked = !all[i].checked;
     }
-    $("#listfiles").load("/ebk_list_server_files", data, function (response) {
-      if (response.code === 200) {
+  }
 
-      }
-    })
+  function select_deselect(target) {
+    let select = false;
+    if (target.checked)
+      select = true;
+    let all = document.getElementsByName("file_checkbox");
+    for (let i = 0; i < all.length; i++) {
+      all[i].checked = select
+    }
   }
 </script>
