@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import smtplib
+import sys
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -184,6 +185,18 @@ def getSubfolders(cur_dir):
 		if f not in res:
 			res.append(f)
 	return res
+
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def getKindleGenBin():
+	my_platform = sys.platform
+	executable = os.path.join(ROOT_DIR, 'bin', 'kindlegen')
+	if my_platform.startswith("linux"):
+		executable += '-linux'
+	elif my_platform.startswith("darwin"):
+		executable += '-mac'
+	return executable
 
 
 class SendEmail:

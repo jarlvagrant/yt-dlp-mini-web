@@ -195,17 +195,18 @@ class EbookExtractorTask(View):
 		content_tag_k = request.form.get("content_tag_k")
 		content_tag_v = request.form.get("content_tag_v")
 		content_tag = {content_tag_k: content_tag_v} if content_tag_k and content_tag_v else {}
+		to_email = request.form.get("to_email")
 		args = {"intro": clean_txt(intro), "method": method, "index_tag": index_tag, "next_tag": next_tag,
 		        "content_tag": content_tag}
 
-		logger.debug(f"Request to extract from {url}: {args.__str__()}")
-		t = Thread(target=extractor_worker, args=(url, args))
+		logger.debug(f"Request to extract from {url}: {args.__str__()}, send_epub_to_email: {to_email}")
+		t = Thread(target=extractor_worker, args=(url, args, to_email))
 		url_book_dict.set_value(url, "thread", t)
 		t.start()
 		return jsonify(code=200, message="Extracting {url}")
 
 
-def extractor_worker(url, args):
+def extractor_worker(url, args, to_email):
 	url_netloc = urlsplit(url).netloc
 	logger.debug(f"Busy hosts: {busy_hosts.keys().__str__()}")
 	if busy_hosts.get(url_netloc):
@@ -243,10 +244,11 @@ def extractor_worker(url, args):
 	url_book_dict.set_value(url, "epub", output)
 	url_book_dict.set_value(url, "chapter", converter.info)
 
-	logger.debug(f"Sending email with attachment {output}")
-	sender = SendEmail(output)
-	sender.send()
-	url_book_dict.append_value_if_key(url, "message", sender.message)
+	if to_email == "true":
+		logger.debug(f"Sending email with attachment {output}")
+		sender = SendEmail(output)
+		sender.send()
+		url_book_dict.append_value_if_key(url, "message", sender.message)
 
 
 class EbookEmail(View):
@@ -273,6 +275,7 @@ class EbookConverterTask(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		key = request.form.get('key', '')
 		intro = clean_txt(request.form.get('intro', ''))
+		to_email = request.form.get('to_email')
 		txt_path = local_book_dict.get_value(key, "txt")
 		if not os.path.isfile(txt_path):
 			return jsonify(code=500, messages="Input text file not found")
@@ -283,16 +286,19 @@ class EbookConverterTask(View):
 		if not os.path.isfile(image_path):
 			image_path = None
 		_, author, tags, des = get_meta_data(intro, data)
-		logger.debug(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}")
+		logger.debug(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image={image_path}, send_epub_to_email: {to_email}")
 		converter = EpubConverter(data, clean_txt(title), clean_txt(author), clean_txt(tags), clean_txt(des), image_path)
 		output = converter.convert()
 		local_book_dict.set_value(key, "epub", output)
 		local_book_dict.set_value(key, "chapter", converter.info)
 
-		logger.debug(f"Sending email with attachment {output}")
-		sender = SendEmail(output)
-		sender.send()
-		return jsonify(code=200, chapter=converter.info, epub=output, message=sender.message)
+		message = "" if output else f"Failed to convert {key} to epub\n"
+		if to_email == "true":
+			logger.debug(f"Sending email with attachment {output}")
+			sender = SendEmail(output)
+			sender.send()
+			message = sender.message
+		return jsonify(code=200, chapter=converter.info, epub=output, message=message)
 
 
 class EbookCover(View):
