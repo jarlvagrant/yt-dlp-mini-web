@@ -1,3 +1,4 @@
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <a href="{{ url_for('ebook') }}">
   <button type="button">< Back</button>
@@ -6,25 +7,42 @@
 <div>
   <h3 style="margin-bottom: 0">{% block title %}Existing files:{% endblock %}</h3>
 </div>
-<div style="font-size: 0.85em">
-  <input type="checkbox" id="select_all" name="select_all" onchange="select_deselect(this)" style="margin-left: 20px">
-  <label for="select_all">Select all</label>
-  <input type="checkbox" id="revert" name="revert" onchange="revert_selected()" style="margin-left: 10px">
-  <label for="revert">Revert</label>
-  <label for="sort_by" style="margin-left: 440px">Sort by</label>
-  <select name="sort_by" id="sort_by">
-    <option value="date">Date: Old &rarr; New</option>
-    <option value="date">Date: New &rarr; Old</option>
-    <option value="size">Size: Small &rarr; Large</option>
-    <option value="size">Size Large &rarr; Small</option>
-  </select>
-  <label for="filter_by" style="margin-left: 10px;">Filter by</label>
-  <select name="filter_by" id="filter_by">
-    <option value="tags">Tags</option>
-    <option value="author">Author</option>
-    <option value="rating">Rating</option>
-  </select>
-</div>
+<table class="listfiles">
+  <td class="listfiles">
+    <input type="checkbox" id="select_all" name="select_all" onchange="select_deselect(this)">
+    <label for="select_all">Select all</label>
+  </td>
+  <td class="listfiles">
+    <input type="checkbox" id="revert" name="revert" onchange="revert_selected()">
+    <label for="revert">Revert</label>
+  </td>
+  <td class="listfiles">
+    <button>Convert Selected</button>
+  </td>
+  <td class="listfiles">
+    <button>Email Selected</button>
+  </td>
+  <td class="listfiles">
+    <button>Delete Selected</button>
+  </td>
+  <td class="listfiles">
+    <label for="sort_by">Sort by</label>
+    <select name="sort_by" id="sort_by">
+      <option value="date">Date: Old &rarr; New</option>
+      <option value="date">Date: New &rarr; Old</option>
+      <option value="size">Size: Small &rarr; Large</option>
+      <option value="size">Size Large &rarr; Small</option>
+    </select>
+  </td>
+  <td class="listfiles">
+    <label for="filter_by">Filter by</label>
+    <select name="filter_by" id="filter_by">
+      <option value="tags">Tags</option>
+      <option value="author">Author</option>
+      <option value="rating">Rating</option>
+    </select>
+  </td>
+</table>
 {% endblock %}
 <div style="padding-left: 12px">
   {% if files|length == 0 %}
@@ -37,7 +55,7 @@
         <input id="{{ file_name }}" type="checkbox" name="file_checkbox">
       </td>
       <td>
-        <p style="color: black" oncontextmenu="onItemMenu(event)">{{ file_name }}</p>
+        <p style="color: black" onclick="onItemMenu(event)">{{ file_name }}</p>
         {% for file_type, file_path in file_info.items() %}
         <td style="width: 4%">
           {% if file_path|length > 0 %}
@@ -56,19 +74,19 @@
   <ul>
     <li id="preview">Preview</li>
     <li id="edit" style="border-top: 1px solid darkgray">Edit</li>
-    <li id="convert">Convert</li>
+    <li id="convert_mobi">Convert Mobi</li>
+    <li id="convert_pdf">Convert PDF</li>
     <li id="email">Email</li>
-    <li id="delete">Delete file</li>
-    <li id="convert_all" style="border-top: 1px solid darkgray">Convert selected</li>
-    <li id="email_all">Email selected</li>
-    <li id="delete_all">Delete selected</li>
+    <li id="delete">Delete</li>
   </ul>
 </div>
-<div id="preview_content" style="display:none;">
-  <p style="background-color: #c9c9c9; width: 100%; height:100%">Preview contentPreview contentPreview contentPreview contentPreview contentPreview content</p>
+<div id="preview_div" class="preview-div" style="display:none;">
+  <textarea  style="background-color: lightgray; width: 100%; height:100%"  id="preview_content" onclick="quit_preview()" placeholder="章节预览："></textarea>
+
+<!--  <p style="background-color: #c9c9c9; width: 100%; height:100%" onclick="quit_preview()">Preview</p>-->
 </div>
 <script>
-  document.onclick = hideItemMenu
+  // document.onclick = hideItemMenu
 
   function hideItemMenu() {
     document.getElementById("contextMenu").style.display = "none"
@@ -86,14 +104,47 @@
       document.getElementById("preview").onclick = function handle_preview() {
         preview(event);
       }
+      document.getElementById("edit").onclick = function handle_edit() {
+        edit(event);
+      }
+      document.getElementById("convert_mobi").onclick = function handle_convert_mobi() {
+        convert_mobi(event);
+      }
+      document.getElementById("convert_pdf").onclick = function handle_convert_pdf() {
+        convert_pdf(event);
+      }
+      document.getElementById("email").onclick = function handle_email() {
+        email(event);
+      }
+      document.getElementById("delete").onclick = function handle_delete() {
+        delete(event);
+      }
     }
   }
 
   function preview(event) {
     let file_name = event.target.innerText;
     console.log(file_name);
-    let view = document.getElementById("preview_content");
-    view.style.display = "block";
+    hideItemMenu();
+    $.post("/ebk_preview", {'file_name': file_name}, function(response) {
+      let view = document.getElementById('preview_div');
+      view.style.display = "block";
+      let rect = event.target.getBoundingClientRect();
+      view.style.left = rect.left + "px";
+      view.style.top = rect.bottom + "px";
+      let content_view = document.getElementById("preview_content");
+      content_view.value = response.data;
+    })
+
+  }
+
+  function convert_mobi(event) {
+    let file_name = event.target.innerText;
+  }
+
+  function quit_preview() {
+    let view = document.getElementById("preview_div");
+    view.style.display = "none";
   }
 
   function revert_selected() {

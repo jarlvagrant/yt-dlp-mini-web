@@ -9,7 +9,8 @@ from werkzeug.serving import WSGIRequestHandler
 
 from Commons import UpdateDir, UpdateConfig, ListSubfolders
 from EbookSender import EBook, EbookUploads, EbookConverterTask, EbookCover, EbookCoverUrl, EbookEmail, \
-	EbookUrls, EbookExtractorTask, EbookSyncInput, EbookDownload, EbookRemoveItem, EbookSyncOutput, EbookServerFiles
+	EbookUrls, EbookExtractorTask, EbookSyncInput, EbookDownload, EbookRemoveItem, EbookSyncOutput, EbookServerFiles, \
+	EbookPreview
 from Utils import log_path, log_file
 from YdlWrapper import YoutubeDownloader, Progress, TaskMaker
 
@@ -67,7 +68,7 @@ def main():
 	app.add_url_rule("/ebk_download", methods=['GET'], view_func=EbookDownload.as_view("ebk_download"))
 	app.add_url_rule("/ebk_email", methods=['POST'], view_func=EbookEmail.as_view("ebk_email"))
 	app.add_url_rule("/ebk_remove", methods=['POST'], view_func=EbookRemoveItem.as_view("ebk_remove"))
-	# app.add_url_rule("/ebk_preview", methods=['POST'], view_func=EbookPreview.as_view("ebk_preview"))
+	app.add_url_rule("/ebk_preview", methods=['POST'], view_func=EbookPreview.as_view("ebk_preview"))
 	app.run(debug=True, host='0.0.0.0', port=8008, request_handler=MyRequestHandler)
 
 

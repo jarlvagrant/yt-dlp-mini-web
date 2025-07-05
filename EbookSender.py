@@ -163,6 +163,23 @@ class EbookDownload(View):
 		path = Path(file_path).name
 		return send_from_directory(directory, path=path)
 
+class EbookPreview(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		path = ConfigIO.get("ebook_dir")
+		if not os.path.isdir(path):
+			logger.error(f"Invalid upload path: {path}")
+			return Response(f'Invalid upload path: {path}', status=404)
+		file_name = request.form.get('file_name')
+		data = b""
+		if os.path.isfile(os.path.join(path, file_name + ".txt")):
+			with open(os.path.join(path, file_name + ".txt"), "rb") as f:
+				while len(data) < 4096:
+					buffer = f.readline()
+					if not buffer:
+						break
+					data += buffer
+				f.close()
+		return jsonify(code=200, data=clean_txt(data))
 
 busy_hosts = {str: threading.Event()}
 
