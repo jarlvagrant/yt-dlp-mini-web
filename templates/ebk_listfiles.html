@@ -58,11 +58,7 @@
         <p style="color: black" onclick="onItemMenu(event)">{{ file_name }}</p>
         {% for file_type, file_path in file_info.items() %}
         <td style="width: 4%">
-          {% if file_path|length > 0 %}
-          <a href="{{ url_for('ebk_download', file_path=file_path) }}" download="">{{ file_type }}</a>
-          {% else %}
-          <a style="color: lightgray">{{ file_type }}</a>
-          {% endif %}
+          <a id="{{ file_name }}.{{ file_type }}" {% if file_path|length > 0 %}href="{{ url_for('ebk_download', file_path=file_path) }}"{% else %}style="color: lightgray"{% endif %} download="">{{ file_type }}</a>
         </td>
         {% endfor %}
       </td>
@@ -82,12 +78,8 @@
 </div>
 <div id="preview_div" class="preview-div" style="display:none;">
   <textarea  style="background-color: lightgray; width: 100%; height:100%"  id="preview_content" onclick="quit_preview()" placeholder="章节预览："></textarea>
-
-<!--  <p style="background-color: #c9c9c9; width: 100%; height:100%" onclick="quit_preview()">Preview</p>-->
 </div>
 <script>
-  // document.onclick = hideItemMenu
-
   function hideItemMenu() {
     document.getElementById("contextMenu").style.display = "none"
   }
@@ -124,22 +116,35 @@
 
   function preview(event) {
     let file_name = event.target.innerText;
-    console.log(file_name);
+    console.log("preview" + file_name);
     hideItemMenu();
     $.post("/ebk_preview", {'file_name': file_name}, function(response) {
-      let view = document.getElementById('preview_div');
-      view.style.display = "block";
-      let rect = event.target.getBoundingClientRect();
-      view.style.left = rect.left + "px";
-      view.style.top = rect.bottom + "px";
-      let content_view = document.getElementById("preview_content");
-      content_view.value = response.data;
+      if (response.code === 200) {
+        let view = document.getElementById('preview_div');
+        view.style.display = "block";
+        let rect = event.target.getBoundingClientRect();
+        view.style.left = rect.left + "px";
+        view.style.top = rect.bottom + "px";
+        let content_view = document.getElementById("preview_content");
+        content_view.value = response.data;
+      } else {
+        alert(response.message);
+      }
     })
-
   }
 
   function convert_mobi(event) {
     let file_name = event.target.innerText;
+    console.log("convert to mobi: " + file_name);
+    hideItemMenu();
+    $.post("/ebk_to_mobi", {'file_name': file_name}, function(response) {
+      if (response.code === 200) {
+        let mobi = document.getElementById(file_name + '.mobi');
+        mobi.href = "ebk_download?file_path=" + response.mobi;
+        mobi.style.color = "#377ba8";
+      }
+      alert(response.message);
+    })
   }
 
   function quit_preview() {
