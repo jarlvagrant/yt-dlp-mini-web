@@ -5,7 +5,6 @@ import subprocess
 import threading
 
 import pinyin
-from chinese_converter import traditional
 from pathlib import Path
 from threading import Thread
 from time import sleep
