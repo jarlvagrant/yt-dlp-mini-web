@@ -18,7 +18,7 @@ from flask import typing as ft, render_template, Response, request, jsonify, sen
 from flask.views import View
 from requests import HTTPError
 
-from Utils import ConfigIO, UA, SendEmail, getInitialFolder, getSubfolders, log_path, getKindleGenBin
+from Utils import ConfigIO, UA, SendEmail, getInitialFolder, getSubfolders, log_path, getKindleGenBin, generate_cover
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +315,10 @@ class EbookConverterTask(View):
 
         data = clean_txt(read_binary_file(txt_path))
         title = clean_txt(Path(txt_path).stem)
+        pos = title.find("(", 1) # remove pattern like (www.xxx.org)
+        pos = pos if pos != -1 else title.find("（", 1)
+        title = title[:pos] if pos != -1 else title
+
         image_path = local_book_dict.get_value(key, "image")
         if not os.path.isfile(image_path):
             image_path = None
@@ -675,6 +679,12 @@ class EpubConverter:
         self.ebook.set_title(self.title)
         self.ebook.set_language("zh")
         self.ebook.add_author(self.author)
+        if not self.image:
+            img_path = os.path.join(self.path, self.title + ".jpg")
+            generate_cover(self.title, self.author, img_path)
+            if os.path.isfile(img_path):
+                self.image = get_image(img_path)
+                os.remove(img_path)
         self.ebook.set_cover(file_name="cover.jpg", content=self.image)
         if self.tags:
             for t in re.split(r" |,|，|。|\.|;｜；|\||｜|\\\|/|、", self.tags):

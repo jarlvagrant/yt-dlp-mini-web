@@ -2,12 +2,14 @@ import datetime
 import json
 import logging
 import os
+import random
 import smtplib
 import sys
 from email.message import EmailMessage
 from pathlib import Path
 
 import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
 from fake_useragent import UserAgent
 
 log_path = "logs"
@@ -197,6 +199,51 @@ def getKindleGenBin():
 	elif my_platform.startswith("darwin"):
 		executable += '-mac'
 	return executable
+
+def randomRGB():
+	return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+
+def generate_cover(title_raw, author, output_path):
+	path = os.path.join(ROOT_DIR, "images")
+	if not os.path.exists(path):
+		logger.error(f"Image folder not found {path}")
+		return False
+	files = os.listdir(path)
+	if len(files) == 0:
+		logger.error(f"Image folder not found {path}")
+		return False
+	try:
+		img = Image.open(os.path.join(path, random.choice(files)))
+	except Exception as e:
+		logger.error(e)
+		return False
+
+	d = ImageDraw.Draw(img)
+	x, y = 60, 40
+	if len(title_raw) > 7:
+		x = 20
+	title = ""
+	while len(title_raw) > 7:
+		title = "\n\t" + title_raw[-7:] + title
+		title_raw = title_raw[0:-7]
+	title = title_raw + title
+	font_path = os.path.join(ROOT_DIR, "static", "msz.ttf")
+	if not os.path.exists(font_path):
+		logger.error(f"Font file not found {font_path}")
+	fnt = ImageFont.truetype(font_path, 40)
+	outer = randomRGB()
+	inner = randomRGB()
+	d.text((x, y), title, font=fnt, fill=outer, direction="ttb", stroke_width=1)
+	d.text((x, y), title, font=fnt, fill=inner, direction="ttb", stroke_width=0.4)
+
+	while len(author) < 10:
+		author = "\t" + author
+	fnt.size = 30
+	d.text((160, 50), author, font=fnt, fill=outer, direction="ttb", stroke_width=1)
+	d.text((160, 50), author, font=fnt, fill=inner, direction="ttb", stroke_width=0.4)
+	img.save(output_path)
+	logger.info(f"Image cover saved to {output_path}")
+	return True
 
 
 class SendEmail:
