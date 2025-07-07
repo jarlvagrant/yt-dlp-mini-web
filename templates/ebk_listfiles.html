@@ -70,6 +70,7 @@
   <ul>
     <li id="preview">Preview</li>
     <li id="edit" style="border-top: 1px solid darkgray">Edit</li>
+    <li id="convert_epub">Convert ePub</li>
     <li id="convert_mobi">Convert Mobi</li>
     <li id="convert_pdf">Convert PDF</li>
     <li id="email">Email</li>
@@ -98,6 +99,9 @@
       }
       document.getElementById("edit").onclick = function handle_edit() {
         edit(event);
+      }
+      document.getElementById("convert_epub").onclick = function handle_convert_epub() {
+        convert_epub(event);
       }
       document.getElementById("convert_mobi").onclick = function handle_convert_mobi() {
         convert_mobi(event);
@@ -133,13 +137,40 @@
     })
   }
 
+  function convert_epub(event) {
+    let file_name = event.target.innerText;
+    console.log("convert to epub: " + file_name);
+    hideItemMenu();
+    let epub = document.getElementById(file_name + ".epub");
+    if (epub.href) {
+      let answer = confirm(file_name + ": Epub file exists, overwrite?");
+      if (answer === false) return;
+    }
+    $.post("/ebk_to_format", {'file_name' : file_name,  'ext': 'epub'}, function (response) {
+      if (response.epub && response.epub.length > 0) {
+        epub.href = "ebk_download?file_path=" + response.epub;
+        epub.style.color = "#377ba8";
+      }
+      alert(response.message);
+    });
+  }
+
   function convert_mobi(event) {
     let file_name = event.target.innerText;
     console.log("convert to mobi: " + file_name);
     hideItemMenu();
-    $.post("/ebk_to_mobi", {'file_name': file_name}, function(response) {
-      if (response.code === 200) {
-        let mobi = document.getElementById(file_name + '.mobi');
+    let mobi = document.getElementById(file_name + '.mobi');
+    if (mobi.href) {
+      let answer = confirm(file_name + ": Mobi file exists, overwrite?");
+      if (answer === false) return;
+    }
+    $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'mobi'}, function(response) {
+      if (response.epub && response.epub.length > 0) {
+        let epub = document.getElementById(file_name + ".epub");
+        epub.href = "ebk_download?file_path=" + response.epub;
+        epub.style.color = "#377ba8";
+      }
+      if (response.mobi && response.mobi.length > 0) {
         mobi.href = "ebk_download?file_path=" + response.mobi;
         mobi.style.color = "#377ba8";
       }

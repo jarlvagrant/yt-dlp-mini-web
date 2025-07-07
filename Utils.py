@@ -210,7 +210,7 @@ def generate_cover(title_raw, author, output_path):
 		return False
 	files = os.listdir(path)
 	if len(files) == 0:
-		logger.error(f"Image folder not found {path}")
+		logger.error(f"Image files not found {path}")
 		return False
 	try:
 		img = Image.open(os.path.join(path, random.choice(files)))
@@ -238,7 +238,7 @@ def generate_cover(title_raw, author, output_path):
 
 	while len(author) < 10:
 		author = "\t" + author
-	fnt.size = 30
+	fnt = ImageFont.truetype(font_path, 30)
 	d.text((160, 50), author, font=fnt, fill=outer, direction="ttb", stroke_width=1)
 	d.text((160, 50), author, font=fnt, fill=inner, direction="ttb", stroke_width=0.4)
 	img.save(output_path)

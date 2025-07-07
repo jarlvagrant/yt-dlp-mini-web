@@ -315,10 +315,6 @@ class EbookConverterTask(View):
 
         data = clean_txt(read_binary_file(txt_path))
         title = clean_txt(Path(txt_path).stem)
-        pos = title.find("(", 1) # remove pattern like (www.xxx.org)
-        pos = pos if pos != -1 else title.find("（", 1)
-        title = title[:pos] if pos != -1 else title
-
         image_path = local_book_dict.get_value(key, "image")
         if not os.path.isfile(image_path):
             image_path = None
@@ -329,7 +325,7 @@ class EbookConverterTask(View):
         local_book_dict.set_value(key, "epub", output)
         local_book_dict.set_value(key, "chapter", converter.info)
 
-        message = "" if output else f"Failed to convert {key} to epub\n"
+        message = f"Convert success: {output}" if output else f"Failed to convert {key} to epub\n"
         if to_email == "true":
             logger.debug(f"Sending email with attachment {output}")
             sender = SendEmail(output)
@@ -338,27 +334,44 @@ class EbookConverterTask(View):
         return jsonify(code=200, chapter=converter.info, epub=output, message=message)
 
 
-class EbookToMobi(View):
+class EbookToFormat(View):
     def dispatch_request(self) -> ft.ResponseReturnValue:
         path = ConfigIO.get("ebook_dir")
         file_name = request.form.get('file_name', '')
-        file_path = os.path.join(path, file_name + ".epub")
-        if os.path.isfile(file_path):
+        ext = request.form.get('ext', '')
+        txt_path = os.path.join(path, file_name + ".txt")
+        epub_path = os.path.join(path, file_name + ".epub")
+        if not os.path.isfile(txt_path) and not os.path.isfile(epub_path):
+            logger.error(f"Failed converting {file_name}: neither txt nor epub is found!")
+            return jsonify(code=500, message=f"Failed converting {file_name}: neither txt nor epub is found!")
+        if not os.path.isfile(epub_path):
+            data = clean_txt(read_binary_file(txt_path))
+            title = clean_txt(file_name)
+            _, author, tags, des = get_meta_data("", data)
+            logger.debug(f"Converting: title={title}, author={author}, tags={tags}, des={des}, image=None")
+            converter = EpubConverter(data, title, clean_txt(author), clean_txt(tags), clean_txt(des), None)
+            epub_path = converter.convert()
+        if not os.path.isfile(epub_path):
+            logger.error(f"Failed converting {file_name} to epub!")
+            return jsonify(code=501, message=f"Failed converting {file_name} to epub!")
+        elif ext == "epub":
+            return jsonify(code=200, epub=epub_path, message="Convert success: " + epub_path)
+        elif ext == "mobi":
             gen = getKindleGenBin()
             try:
-                subprocess.check_call([gen, file_path])
+                subprocess.check_call([gen, epub_path])
             except subprocess.CalledProcessError as e:
                 logger.error(e)
             mobi_path = os.path.join(path, file_name + ".mobi")
             if os.path.isfile(mobi_path):
                 logger.info(f"Converting success: {mobi_path}")
-                return jsonify(code=200, mobi=mobi_path, message="Convert success: " + mobi_path)
+                return jsonify(code=200, epub=epub_path, mobi=mobi_path, message="Convert success: " + mobi_path)
             else:
                 logger.error("Failed to convert, mobi file is not found: " + mobi_path)
-                return jsonify(code=502, message="Failed to convert, mobi file is not found: " + mobi_path)
+                return jsonify(code=502, epub=epub_path, message="Failed to convert, mobi file is not found: " + mobi_path)
         else:
-            logger.error(f"Epub {file_path} not found!")
-            return jsonify(code=500, messages=f"Epub {file_path} not found!")
+            logger.error(f"ext {ext} is not supported!")
+            return jsonify(code=503, epub=epub_path, message=f"ext {ext} is not supported!")
 
 class EbookCover(View):
     def dispatch_request(self) -> ft.ResponseReturnValue:
@@ -674,14 +687,17 @@ class EpubConverter:
             return ""
         logger.info(f"initiating txt to epub converting of {self.title}, author: {self.author} length {len(self.data)}")
 
+        pos = self.title.find("(", 1) # remove pattern like (www.xxx.org)
+        title = self.title[:pos] if pos != -1 else self.title # don't change the file name, only the metadata title
+
         # set metadata
-        self.ebook.set_identifier(self.title + self.author)
-        self.ebook.set_title(self.title)
+        self.ebook.set_identifier(title + self.author)
+        self.ebook.set_title(title)
         self.ebook.set_language("zh")
         self.ebook.add_author(self.author)
         if not self.image:
             img_path = os.path.join(self.path, self.title + ".jpg")
-            generate_cover(self.title, self.author, img_path)
+            generate_cover(title, self.author, img_path)
             if os.path.isfile(img_path):
                 self.image = get_image(img_path)
                 os.remove(img_path)
@@ -695,7 +711,7 @@ class EpubConverter:
         # create add intro page
         intro = epub.EpubHtml(title="简介", file_name="intro.xhtml", lang="zh")
         intro.content = ("<h2>%s</h2><h3>作者：%s</h3><h3>内容标签：%s</h3><p>%s</p>" %
-                         (self.title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
+                         (title, self.author, self.tags, self.des.replace("\n", "</p><p>")))
         self.ebook.toc.append(epub.Link("intro.xhtml", "简介", "intro"))
         self.ebook.add_item(intro)
 
