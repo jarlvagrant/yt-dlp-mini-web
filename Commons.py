@@ -32,12 +32,20 @@ class UpdateDir(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		new_path = request.form.get("dir")
 		dir_type = request.form.get("id")
-		code = 201
-		if os.path.isdir(new_path):
+		old_path = ConfigIO.get(dir_type)
+		code = 500
+		logger.debug(f"Updating directory: {dir_type} = {new_path}")
+		if new_path and os.path.isdir(new_path):
 			code = 200
 			ConfigIO.set(dir_type, new_path)
-		logger.debug(f"Updating directory: {dir_type} = {new_path}, code = {code}")
-		return jsonify(code=code)
+		elif old_path and os.path.isdir(old_path):
+			code = 201
+			new_path = old_path
+		else:
+			new_path = os.sep
+			ConfigIO.set(dir_type, new_path)
+		logger.debug(f"Updated directory: {dir_type} = {new_path}, code = {code}")
+		return jsonify(code=code, dir=new_path)
 
 
 class ListSubfolders(View):
@@ -45,4 +53,4 @@ class ListSubfolders(View):
 		cur_dir = request.form.get("cur_dir")
 		folders = getSubfolders(cur_dir)
 		logger.debug(f"List subfolders of {cur_dir}: {folders}")
-		return jsonify(cur_dir=cur_dir, folders=folders)
+		return jsonify(folders=folders)

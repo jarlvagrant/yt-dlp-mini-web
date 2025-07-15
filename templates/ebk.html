@@ -5,7 +5,7 @@
 <div class="right">
     <div id="epub_folder">
         <label class="gray" for="ebook_dir" style="margin-right: 5px">Save to: </label>
-        <input class="gray" id="ebook_dir" value="{{ ebook_dir }}" onfocusout="validate_path(event)"/>
+        <input class="gray" id="ebook_dir" value="{{ ebook_dir }}" onfocusout="folder_input(event)"/>
         <select class="gray" onchange="folder_selected(event)" style="width:26px">
             {% for folder in folders %}
             <option value={{ folder }}>{{ folder }}</option>

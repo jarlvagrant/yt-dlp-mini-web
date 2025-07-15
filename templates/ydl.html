@@ -5,7 +5,7 @@
 <div class="right">
     <div>
         <label class="gray" for="video_dir">Save video to: </label>
-        <input class="gray" id="video_dir" name="video_dir" value="{{ video_dir }}" onfocusout="validate_path(event)"/>
+        <input class="gray" id="video_dir" name="video_dir" value="{{ video_dir }}" onfocusout="folder_input(event)"/>
         <select class="gray" style="width:26px" onchange="folder_selected(event)">
             {% for folder in video_folders %}
             <option value={{ folder }}>{{ folder }}</option>
@@ -14,7 +14,7 @@
     </div>
     <div>
         <label class="gray" for="audio_dir">Save audio to: </label>
-        <input class="gray" id="audio_dir" name="audio_dir" value="{{ audio_dir }}" onfocusout="validate_path(event)"/>
+        <input class="gray" id="audio_dir" name="audio_dir" value="{{ audio_dir }}" onfocusout="folder_input(event)"/>
         <select class="gray" style="width:26px" onchange="folder_selected(event)">
             {% for folder in audio_folders %}
             <option value={{ folder }}>{{ folder }}</option>
