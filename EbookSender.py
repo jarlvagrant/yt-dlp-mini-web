@@ -66,15 +66,17 @@ class EbookServerFiles(View):
 			logger.error(f"Invalid upload path: {path}")
 			return Response(f'Invalid upload path: {path}', status=404)
 		else:
-			for f in os.listdir(path):
-				if os.path.isfile(os.path.join(path, f)):
-					file_name, file_extension = os.path.splitext(f)
-					file_extension = file_extension.lstrip('.')
-					if file_extension in file_types:
-						if not files.get(file_name):
-							files[file_name] = {key: "" for key in file_types}
-						files[file_name][file_extension] = os.path.join(path, f)
-		return render_template("ebk_listfiles.html", files=files)
+			for dp, dn, filenames in os.walk(path):
+				rp = '.' + dp.replace(path, '')
+				for f in filenames:
+					stem, ext = os.path.splitext(f)
+					ext = ext.lstrip(".")
+					if ext in file_types:
+						if not files.get(stem):
+							files[stem] = {'dp': dp + os.sep, 'rp': rp, 'ext': [ext]}
+						else:
+							files[stem]['ext'].append(ext)
+		return render_template('ebk_listfiles.html', files=files)
 
 
 class EbookUploads(View):

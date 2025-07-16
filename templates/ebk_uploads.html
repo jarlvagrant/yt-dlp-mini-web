@@ -14,9 +14,9 @@
         <a id="txt{{ file }}" href="{{ url_for('ebk_download', file_path=status.txt) }}" download="{{ file }}" style="float: right; margin-right: 2em">TXT</a>
         <table>
             <tr>
-                <th><label class="radio" style="color:dimgray; font-style: italic;">Input cover image:</label></th>
+                <th style="width: 16rem"><label class="radio" style="color:dimgray; font-style: italic;">Input cover image:</label></th>
                 <th rowspan="3">
-                    <textarea id="intro{{ file }}" name="intro" cols="60" style="min-height: 80px" onfocusout="sync_input(event)" placeholder="title 作者：author&#10;intro&#10;内容标签：tagg1 tag2 tag3">{{ status.intro }}</textarea>
+                    <textarea id="intro{{ file }}" name="intro" cols="60" style="width: 96%; min-height: 80px" onfocusout="sync_input(event)" placeholder="title 作者：author&#10;intro&#10;内容标签：tagg1 tag2 tag3">{{ status.intro }}</textarea>
                 </th>
             </tr>
             <tr>
@@ -34,7 +34,7 @@
             </tr>
             <tr>
                 <td><img id="image{{ file }}" src="{{ url_for('ebk_download', file_path=status.image) if status.image else '#' }}" style="height: 80px" alt="image preview"/></td>
-                <td><textarea id="info{{ file }}" cols="60" style="min-height: 80px" placeholder="章节预览：">{{ status.chapter }}</textarea>
+                <td><textarea id="info{{ file }}" cols="60" style="width: 96%; min-height: 80px" placeholder="章节预览：">{{ status.chapter }}</textarea>
                 </td>
             </tr>
         </table>

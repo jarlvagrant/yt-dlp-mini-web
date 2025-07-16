@@ -1,219 +1,229 @@
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <a href="{{ url_for('ebook') }}">
-  <button type="button">< Back</button>
+    <button type="button">< Back</button>
 </a>
 {% block header %}
 <div>
-  <h3 style="margin-bottom: 0">{% block title %}Existing files:{% endblock %}</h3>
+    <h3 style="margin-bottom: 0">{% block title %}Existing files:{% endblock %}</h3>
 </div>
 <table class="listfiles">
-  <td class="listfiles">
-    <input type="checkbox" id="select_all" name="select_all" onchange="select_deselect(this)">
-    <label for="select_all">Select all</label>
-  </td>
-  <td class="listfiles">
-    <input type="checkbox" id="revert" name="revert" onchange="revert_selected()">
-    <label for="revert">Revert</label>
-  </td>
-  <td class="listfiles">
-    <button>Convert Selected</button>
-  </td>
-  <td class="listfiles">
-    <button>Email Selected</button>
-  </td>
-  <td class="listfiles">
-    <button>Delete Selected</button>
-  </td>
-  <td class="listfiles">
-    <label for="sort_by">Sort by</label>
-    <select name="sort_by" id="sort_by">
-      <option value="date">Date: Old &rarr; New</option>
-      <option value="date">Date: New &rarr; Old</option>
-      <option value="size">Size: Small &rarr; Large</option>
-      <option value="size">Size Large &rarr; Small</option>
-    </select>
-  </td>
-  <td class="listfiles">
-    <label for="filter_by">Filter by</label>
-    <select name="filter_by" id="filter_by">
-      <option value="tags">Tags</option>
-      <option value="author">Author</option>
-      <option value="rating">Rating</option>
-    </select>
-  </td>
+    <td class="listfiles">
+        <input type="checkbox" id="select_all" name="select_all" onchange="select_deselect(this)">
+        <label for="select_all">Select all</label>
+    </td>
+    <td class="listfiles">
+        <input type="checkbox" id="revert" name="revert" onchange="revert_selected()">
+        <label for="revert">Revert</label>
+    </td>
+    <td class="listfiles">
+        <button>Convert Selected</button>
+    </td>
+    <td class="listfiles">
+        <button>Email Selected</button>
+    </td>
+    <td class="listfiles">
+        <button>Delete Selected</button>
+    </td>
+    <td class="listfiles">
+        <label for="sort_by">Sort by</label>
+        <select name="sort_by" id="sort_by">
+            <option value="date">Date: Old &rarr; New</option>
+            <option value="date">Date: New &rarr; Old</option>
+            <option value="size">Size: Small &rarr; Large</option>
+            <option value="size">Size Large &rarr; Small</option>
+        </select>
+    </td>
+    <td class="listfiles">
+        <label for="filter_by">Filter by</label>
+        <select name="filter_by" id="filter_by">
+            <option value="tags">Tags</option>
+            <option value="author">Author</option>
+            <option value="rating">Rating</option>
+        </select>
+    </td>
 </table>
 {% endblock %}
 <div style="padding-left: 12px">
-  {% if files|length == 0 %}
-  <p style="color: gray">no files found<p>
-  {% endif %}
-  {% for file_name, file_info in files.items() %}
-  <table>
-    <tr class="{{ loop.cycle('files_odd', 'files_even') }}">
-      <td style="width: 2%">
-        <input id="{{ file_name }}" type="checkbox" name="file_checkbox">
-      </td>
-      <td>
-        <p style="color: black" onclick="onItemMenu(event)">{{ file_name }}</p>
-        {% for file_type, file_path in file_info.items() %}
-        <td style="width: 4%">
-          <a id="{{ file_name }}.{{ file_type }}" {% if file_path|length > 0 %}href="{{ url_for('ebk_download', file_path=file_path) }}"{% else %}style="color: lightgray"{% endif %} download="">{{ file_type }}</a>
-        </td>
-        {% endfor %}
-      </td>
-    </tr>
-  </table>
-  {% endfor %}
+    {% set allowed_types = ['epub', 'txt', 'pdf', 'mobi', 'azw'] %}
+    {% if files|length == 0 %}
+    <p style="color: gray">no files found
+    <p>
+    {% endif %}
+    {% for file_name, file_info in files.items() %}
+    {% set exist_types = file_info['ext'] %}
+    <table>
+        <tr class="{{ loop.cycle('files_odd', 'files_even') }}">
+            <td style="width: 2%">
+                <input id="{{ file_name }}" type="checkbox" name="file_checkbox">
+            </td>
+            <td style="width: 20rem; max-width: 20rem">
+                <p style="color: black; white-space: nowrap; overflow-x: clip" onclick="onItemMenu(event)">{{ file_name }}</p>
+            </td>
+            {% for file_type in allowed_types %}
+            {% set real_path = file_info['dp'] + file_name + "." + file_type %}
+            <td style="width: 4%">
+                <a id="{{ file_name }}.{{ file_type }}" {% if file_type in exist_types %}href="{{url_for('ebk_download',
+                file_path=real_path) }}" {% else %}style="color: lightgray" {% endif %} download="">{{ file_type }}</a>
+            </td>
+            {% endfor %}
+            <td style="font-size: 0.7em; text-align: left; max-width: 160px; width: 160px; white-space: nowrap;">
+                {{ file_info['rp'] }}
+            </td>
+        </tr>
+    </table>
+    {% endfor %}
 </div>
 <div id="contextMenu" class="context-menu" style="display:none">
-  <ul>
-    <li id="preview">Preview</li>
-    <li id="edit" style="border-top: 1px solid darkgray">Edit</li>
-    <li id="convert_epub">Convert ePub</li>
-    <li id="convert_mobi">Convert Mobi</li>
-    <li id="convert_pdf">Convert PDF</li>
-    <li id="email">Email</li>
-    <li id="delete">Delete</li>
-  </ul>
+    <ul>
+        <li id="preview">Preview</li>
+        <li id="edit" style="border-top: 1px solid darkgray">Edit</li>
+        <li id="convert_epub">Convert ePub</li>
+        <li id="convert_mobi">Convert Mobi</li>
+        <li id="convert_pdf">Convert PDF</li>
+        <li id="email">Email</li>
+        <li id="delete">Delete</li>
+    </ul>
 </div>
 <div id="preview_div" class="preview-div" style="display:none;">
-  <textarea  style="background-color: lightgray; width: 100%; height:100%"  id="preview_content" onclick="quit_preview()" placeholder="章节预览："></textarea>
+    <textarea style="background-color: lightgray; width: 100%; height:100%" id="preview_content"
+              onclick="quit_preview()" placeholder="章节预览："></textarea>
 </div>
 <script>
-  function hideItemMenu() {
-    document.getElementById("contextMenu").style.display = "none"
-  }
-
-  function onItemMenu(event) {
-    event.preventDefault();
-    let menu = document.getElementById("contextMenu")
-    if (menu.style.display === "block")
-      hideItemMenu();
-    else {
-      menu.style.display = 'block';
-      menu.style.left = event.pageX + "px";
-      menu.style.top = event.pageY + "px";
-      document.getElementById("preview").onclick = function handle_preview() {
-        preview(event);
-      }
-      document.getElementById("edit").onclick = function handle_edit() {
-        edit(event);
-      }
-      document.getElementById("rename").onclick = function handle_rename() {
-        rename(event);
-      }
-      document.getElementById("convert_epub").onclick = function handle_convert_epub() {
-        convert_epub(event);
-      }
-      document.getElementById("convert_mobi").onclick = function handle_convert_mobi() {
-        convert_mobi(event);
-      }
-      document.getElementById("convert_pdf").onclick = function handle_convert_pdf() {
-        convert_pdf(event);
-      }
-      document.getElementById("email").onclick = function handle_email() {
-        email(event);
-      }
-      document.getElementById("delete").onclick = function handle_delete() {
-        delete(event);
-      }
+    function hideItemMenu() {
+        document.getElementById("contextMenu").style.display = "none"
     }
-  }
 
-  function preview(event) {
-    let file_name = event.target.innerText;
-    console.log("preview" + file_name);
-    hideItemMenu();
-    $.post("/ebk_preview", {'file_name': file_name}, function(response) {
-      if (response.code === 200) {
-        let view = document.getElementById('preview_div');
-        view.style.display = "block";
-        let rect = event.target.getBoundingClientRect();
-        view.style.left = rect.left + "px";
-        view.style.top = rect.bottom + "px";
-        let content_view = document.getElementById("preview_content");
-        content_view.value = response.data;
-      } else {
-        alert(response.message);
-      }
-    })
-  }
-
-  function quit_preview() {
-    let view = document.getElementById("preview_div");
-    view.style.display = "none";
-  }
-
-  function convert_epub(event) {
-    let file_name = event.target.innerText;
-    console.log("convert to epub: " + file_name);
-    hideItemMenu();
-    $.post("/ebk_to_format", {'file_name' : file_name,  'ext': 'epub'}, function (response) {
-      if (response.epub && response.epub.length > 0) {
-        let epub = document.getElementById(file_name + ".epub");
-        epub.href = "ebk_download?file_path=" + response.epub;
-        epub.style.color = "#377ba8";
-      }
-      alert(response.message);
-    });
-  }
-
-  function edit(event) {
-    alert("function is not ready")
-  }
-
-  function rename(event) {
-    alert("function is not ready")
-  }
-
-  function convert_mobi(event) {
-    let file_name = event.target.innerText;
-    console.log("convert to mobi: " + file_name);
-    hideItemMenu();
-    $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'mobi'}, function(response) {
-      if (response.epub && response.epub.length > 0) {
-        let epub = document.getElementById(file_name + ".epub");
-        epub.href = "ebk_download?file_path=" + response.epub;
-        epub.style.color = "#377ba8";
-      }
-      if (response.mobi && response.mobi.length > 0) {
-        let mobi = document.getElementById(file_name + '.mobi');
-        mobi.href = "ebk_download?file_path=" + response.mobi;
-        mobi.style.color = "#377ba8";
-      }
-      alert(response.message);
-    })
-  }
-
-  function convert_pdf(event) {
-    alert("function is not ready")
-  }
-
-  function email(event) {
-    let file_name = event.target.innerText;
-    console.log("email epub: " + file_name);
-
-    let part = input.innerText;
-    console.log(part);
-    $.post("/ebk_email", {'keys[]':[part], 'sub_key': 'epub'}, function (response) {
-      window.alert(response.message);
-    });
-  }
-  function revert_selected() {
-    let all = document.getElementsByName("file_checkbox");
-    for (let i = 0; i < all.length; i++) {
-      all[i].checked = !all[i].checked;
+    function onItemMenu(event) {
+        event.preventDefault();
+        let menu = document.getElementById("contextMenu")
+        if (menu.style.display === "block")
+            hideItemMenu();
+        else {
+            menu.style.display = 'block';
+            menu.style.left = event.pageX + "px";
+            menu.style.top = event.pageY + "px";
+            document.getElementById("preview").onclick = function handle_preview() {
+                preview(event);
+            }
+            document.getElementById("edit").onclick = function handle_edit() {
+                edit(event);
+            }
+            document.getElementById("rename").onclick = function handle_rename() {
+                rename(event);
+            }
+            document.getElementById("convert_epub").onclick = function handle_convert_epub() {
+                convert_epub(event);
+            }
+            document.getElementById("convert_mobi").onclick = function handle_convert_mobi() {
+                convert_mobi(event);
+            }
+            document.getElementById("convert_pdf").onclick = function handle_convert_pdf() {
+                convert_pdf(event);
+            }
+            document.getElementById("email").onclick = function handle_email() {
+                email(event);
+            }
+            document.getElementById("delete").onclick = function handle_delete() {
+                delete (event);
+            }
+        }
     }
-  }
 
-  function select_deselect(target) {
-    let select = false;
-    if (target.checked)
-      select = true;
-    let all = document.getElementsByName("file_checkbox");
-    for (let i = 0; i < all.length; i++) {
-      all[i].checked = select;
+    function preview(event) {
+        let file_name = event.target.innerText;
+        console.log("preview" + file_name);
+        hideItemMenu();
+        $.post("/ebk_preview", {'file_name': file_name}, function (response) {
+            if (response.code === 200) {
+                let view = document.getElementById('preview_div');
+                view.style.display = "block";
+                let rect = event.target.getBoundingClientRect();
+                view.style.left = rect.left + "px";
+                view.style.top = rect.bottom + "px";
+                let content_view = document.getElementById("preview_content");
+                content_view.value = response.data;
+            } else {
+                alert(response.message);
+            }
+        })
     }
-  }
+
+    function quit_preview() {
+        let view = document.getElementById("preview_div");
+        view.style.display = "none";
+    }
+
+    function convert_epub(event) {
+        let file_name = event.target.innerText;
+        console.log("convert to epub: " + file_name);
+        hideItemMenu();
+        $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'epub'}, function (response) {
+            if (response.epub && response.epub.length > 0) {
+                let epub = document.getElementById(file_name + ".epub");
+                epub.href = "ebk_download?file_path=" + response.epub;
+                epub.style.color = "#377ba8";
+            }
+            alert(response.message);
+        });
+    }
+
+    function edit(event) {
+        alert("function is not ready")
+    }
+
+    function rename(event) {
+        alert("function is not ready")
+    }
+
+    function convert_mobi(event) {
+        let file_name = event.target.innerText;
+        console.log("convert to mobi: " + file_name);
+        hideItemMenu();
+        $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'mobi'}, function (response) {
+            if (response.epub && response.epub.length > 0) {
+                let epub = document.getElementById(file_name + ".epub");
+                epub.href = "ebk_download?file_path=" + response.epub;
+                epub.style.color = "#377ba8";
+            }
+            if (response.mobi && response.mobi.length > 0) {
+                let mobi = document.getElementById(file_name + '.mobi');
+                mobi.href = "ebk_download?file_path=" + response.mobi;
+                mobi.style.color = "#377ba8";
+            }
+            alert(response.message);
+        })
+    }
+
+    function convert_pdf(event) {
+        alert("function is not ready")
+    }
+
+    function email(event) {
+        let file_name = event.target.innerText;
+        console.log("email epub: " + file_name);
+
+        let part = input.innerText;
+        console.log(part);
+        $.post("/ebk_email", {'keys[]': [part], 'sub_key': 'epub'}, function (response) {
+            window.alert(response.message);
+        });
+    }
+
+    function revert_selected() {
+        let all = document.getElementsByName("file_checkbox");
+        for (let i = 0; i < all.length; i++) {
+            all[i].checked = !all[i].checked;
+        }
+    }
+
+    function select_deselect(target) {
+        let select = false;
+        if (target.checked)
+            select = true;
+        let all = document.getElementsByName("file_checkbox");
+        for (let i = 0; i < all.length; i++) {
+            all[i].checked = select;
+        }
+    }
 </script>
