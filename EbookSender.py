@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 import threading
 
@@ -60,6 +61,8 @@ file_types = ['epub', 'txt', 'pdf', 'mobi', 'azw']
 
 class EbookServerFiles(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
+		sort_by = request.form.get("sort_by")
+		filter_by = request.form.get("filter_by")
 		path = ConfigIO.get("ebook_dir")
 		files = {}  # {file_name: {file_type: file_path}}
 		if not os.path.isdir(path):
@@ -77,6 +80,20 @@ class EbookServerFiles(View):
 						else:
 							files[stem]['ext'].append(ext)
 		return render_template('ebk_listfiles.html', files=files)
+
+def sort_files_by(key, files):
+	if key == "name":
+		sorted_keys = sorted(files.keys())
+		sorted_files = {key: files[key] for key in sorted_keys}
+	elif key == "folder":
+		sorted_files = sorted(files.items(), key=lambda item: item[1]['dp'])
+	elif key == "date":
+		sorted_files = sorted(files.items(), key=lambda item: item[1]['date'])
+	elif key == "size":
+		sorted_files = sorted(files.items(), key=lambda item: item[1]['size'])
+	else:
+		sorted_files = files
+	return sorted_files
 
 
 class EbookUploads(View):
@@ -177,7 +194,8 @@ class EbookExtractorTask(View):
 		index_tag_k = request.form.get("index_tag_k")
 		index_tag_v = request.form.get("index_tag_v")
 		index_tag = {index_tag_k: index_tag_v} if index_tag_k and index_tag_v else {}
-		next_tag = request.form.get("next_tag")
+		next_tag_string = request.form.get("next_tag")
+		next_tag = [n.strip() for n in re.split(r",|，| ", next_tag_string)] if next_tag_string else []
 		content_tag_k = request.form.get("content_tag_k")
 		content_tag_v = request.form.get("content_tag_v")
 		content_tag = {content_tag_k: content_tag_v} if content_tag_k and content_tag_v else {}

@@ -258,7 +258,8 @@ td, th {
 td.listfiles {
   border: none;
   background-color: white;
-  text-align: right;
+  padding-left: 14px;
+  text-align: left;
 }
 
 tr:nth-child(odd){background-color: #f2f2f2;}

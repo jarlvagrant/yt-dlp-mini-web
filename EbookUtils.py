@@ -130,6 +130,8 @@ def read_image(filename):
 
 
 def extractHtml(url: str, cookies=None):
+	if not (url.startswith("http://") or url.startswith("https://")):
+		url = "http://" + url
 	try:
 		urlparse(url)
 	except AttributeError:
@@ -497,7 +499,7 @@ class EbookWebExtractor:
 
 	def extract_traverse(self):
 		text = self.info.get("intro") + "\n" if self.info.get("intro") else ""
-		n = self.info.get("next_tag") if self.info.get("next_tag") else "下一页"
+		n = self.info.get("next_tag") if self.info.get("next_tag") else ["下一页", "下一頁", "下一章"]
 		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
 			"id": "text"}  # input content_tag or use id=text
 		url = self.url
@@ -523,7 +525,11 @@ class EbookWebExtractor:
 				logger.error(f"Failed to extract page {url}, wrong content tag: {attr}")
 				self.error += f"Failed to extract page {url}, wrong content tag: {attr}"
 				break
-			n_element = soup.find(string=n)
+			n_element = ""
+			for n_text in n:
+				n_element = soup.find(string=re.compile(rf'{n_text}'))
+				if n_element:
+					break
 			if not n_element:
 				logger.info(f"Last page {url}\n")
 				break
@@ -534,6 +540,7 @@ class EbookWebExtractor:
 			if not self.split_utl.netloc in href:  # not all href contain the host location
 				href = self.split_utl.netloc + href
 			url = href
+			page = page + 1
 			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
 		return text
 
