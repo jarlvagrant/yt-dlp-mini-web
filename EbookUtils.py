@@ -129,9 +129,13 @@ def read_image(filename):
 	return image
 
 
-def extractHtml(url: str, cookies=None):
+def extractHtml(url: str, netloc="", cookies=None):
 	if not (url.startswith("http://") or url.startswith("https://")):
-		url = "http://" + url
+		if netloc and netloc not in url:
+			url = "http://" + netloc + url
+		else:
+			url = "http://" + url
+
 	try:
 		urlparse(url)
 	except AttributeError:
@@ -163,18 +167,18 @@ def extractHtmlImage(url: str):
 	return image
 
 
-def extractHtmlText(url: str, cookies=None):
+def extractHtmlText(url: str, netloc="", cookies=None):
 	text = ""
-	response = extractHtml(url, cookies)
+	response = extractHtml(url, netloc, cookies)
 	if response and response.status_code == 200:
 		response.encoding = response.apparent_encoding
 		text = unquote(response.text, response.encoding)
 	return text
 
 
-def extractHtmlSoup(url: str, cookies=None):
+def extractHtmlSoup(url: str, netloc="", cookies=None):
 	soup = None
-	text = extractHtmlText(url, cookies)
+	text = extractHtmlText(url, netloc, cookies)
 	if text:
 		soup = BeautifulSoup(text, 'html5lib')
 	return soup
@@ -475,7 +479,7 @@ class EbookWebExtractor:
 		attr = self.info.get("content_tag") if self.info.get("content_tag") else {
 			"id": "text"}  # input content_tag or use id=text
 		for idx, page in enumerate(self.info.get("pages")):
-			soup = extractHtmlSoup(page)
+			soup = extractHtmlSoup(page, netloc=self.split_utl.netloc)
 			if not soup:
 				logger.warning(f"Failed to download page {page}\n")
 				continue
@@ -505,7 +509,7 @@ class EbookWebExtractor:
 		url = self.url
 		page = 0
 		while True:
-			soup = extractHtmlSoup(url)
+			soup = extractHtmlSoup(url, netloc=self.split_utl.netloc)
 			if not soup:
 				logger.error(f"Failed to download page {url}\n")
 				self.error += f"Failed to extract page {url}\n"
@@ -525,20 +529,16 @@ class EbookWebExtractor:
 				logger.error(f"Failed to extract page {url}, wrong content tag: {attr}")
 				self.error += f"Failed to extract page {url}, wrong content tag: {attr}"
 				break
-			n_element = ""
+			href = ""
 			for n_text in n:
 				n_element = soup.find(string=re.compile(rf'{n_text}'))
 				if n_element:
-					break
-			if not n_element:
-				logger.info(f"Last page {url}\n")
-				break
-			href = n_element.parent.get("href")
+					href = n_element.parent.get("href")
+					if href:
+						break
 			if not href:
 				logger.info(f"Last page {url}\n")
 				break
-			if not self.split_utl.netloc in href:  # not all href contain the host location
-				href = self.split_utl.netloc + href
 			url = href
 			page = page + 1
 			sleep(0.5)  # to avoid 429 Client Error: Too Many Requests
@@ -564,7 +564,5 @@ class EbookWebExtractor:
 		for p in pages:
 			h = p.get("href")
 			if h:
-				if not self.split_utl.netloc in h:  # not all href contain the host location
-					h = self.split_utl.netloc + h
 				hrefs.append(h)
 		self.info["pages"] = hrefs
