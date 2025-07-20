@@ -27,11 +27,13 @@
     </td>
     <td class="listfiles">
         <label for="sort_by">Sort by</label>
-        <select name="sort_by" id="sort_by">
-            <option value="date">Date: Old &rarr; New</option>
-            <option value="date">Date: New &rarr; Old</option>
-            <option value="size">Size: Small &rarr; Large</option>
-            <option value="size">Size Large &rarr; Small</option>
+        <select name="sort_by" id="sort_by" onchange="sort_by_selected(this.value)">
+            <option value="name_0">Filename a &rarr; z</option>
+            <option value="name_1">Filename z &rarr; a</option>
+            <option value="folder_0">Folder a &rarr; z</option>
+            <option value="folder_1">Folder z &rarr; a</option>
+            <option value="date_0">Date: Old &rarr; New</option>
+            <option value="date_1">Date: New &rarr; Old</option>
         </select>
     </td>
     <td class="listfiles">
@@ -44,7 +46,7 @@
     </td>
 </table>
 {% endblock %}
-<div style="padding-left: 12px">
+<div id="main" style="padding-left: 12px">
     {% set allowed_types = ['epub', 'txt', 'pdf', 'mobi', 'azw'] %}
     {% if files|length == 0 %}
     <p style="color: gray">no files found
@@ -225,5 +227,10 @@
         for (let i = 0; i < all.length; i++) {
             all[i].checked = select;
         }
+    }
+
+    function sort_by_selected(value) {
+        let option = value.split('_')
+        $("#main").load("ebk_list_server_files #main", {'sort_by': option[0], 'reverse': option[1]})
     }
 </script>

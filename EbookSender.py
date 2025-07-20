@@ -63,36 +63,41 @@ class EbookServerFiles(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		sort_by = request.form.get("sort_by")
 		filter_by = request.form.get("filter_by")
+		reverse_int = request.form.get("reverse", type = int)
+		reverse = True if reverse_int == 1 else False
 		path = ConfigIO.get("ebook_dir")
 		files = {}  # {file_name: {file_type: file_path}}
 		if not os.path.isdir(path):
 			logger.error(f"Invalid upload path: {path}")
 			return Response(f'Invalid upload path: {path}', status=404)
-		else:
-			for dp, dn, filenames in os.walk(path):
-				rp = '.' + dp.replace(path, '')
-				for f in filenames:
-					stem, ext = os.path.splitext(f)
-					ext = ext.lstrip(".")
-					if ext in file_types:
-						if not files.get(stem):
-							files[stem] = {'dp': dp + os.sep, 'rp': rp, 'ext': [ext]}
-						else:
-							files[stem]['ext'].append(ext)
+		for dp, dn, filenames in os.walk(path):
+			rp = '.' + dp.replace(path, '')
+			for f in filenames:
+				stem, ext = os.path.splitext(f)
+				ext = ext.lstrip(".")
+				f_path = os.path.join(dp, f)
+				if ext in file_types:
+					if not files.get(stem, ''):
+						files[stem] = {'dp': dp + os.sep, 'rp': rp, 'ext': [ext], 'date': os.path.getctime(f_path)}
+					else:
+						files[stem]['ext'].append(ext)
+						files[stem]['date'] = os.path.getctime(f_path) if files[stem]['date'] > os.path.getctime(
+							f_path) else files[stem]['date']
+		if sort_by:
+			files = sort_files_by(sort_by, files, reverse=reverse)
 		return render_template('ebk_listfiles.html', files=files)
 
-def sort_files_by(key, files):
-	if key == "name":
-		sorted_keys = sorted(files.keys())
-		sorted_files = {key: files[key] for key in sorted_keys}
-	elif key == "folder":
-		sorted_files = sorted(files.items(), key=lambda item: item[1]['dp'])
-	elif key == "date":
-		sorted_files = sorted(files.items(), key=lambda item: item[1]['date'])
-	elif key == "size":
-		sorted_files = sorted(files.items(), key=lambda item: item[1]['size'])
-	else:
-		sorted_files = files
+def sort_files_by(key, files, reverse=False):
+	logger.debug(f"Sorting by {key} reverse {reverse}")
+	match key:
+		case "name":
+			sorted_files = dict(sorted(files.items(), key=lambda item: pinyin.get(item[0], format="strip"), reverse=reverse))
+		case "folder":
+			sorted_files = dict(sorted(files.items(), key=lambda item: pinyin.get(item[1]['dp'], format="strip"), reverse=reverse))
+		case "date":
+			sorted_files = dict(sorted(files.items(), key=lambda item: item[1]['date'], reverse=reverse))
+		case _:
+			sorted_files = files
 	return sorted_files
 
 
@@ -195,7 +200,7 @@ class EbookExtractorTask(View):
 		index_tag_v = request.form.get("index_tag_v")
 		index_tag = {index_tag_k: index_tag_v} if index_tag_k and index_tag_v else {}
 		next_tag_string = request.form.get("next_tag")
-		next_tag = [n.strip() for n in re.split(r",|，| ", next_tag_string)] if next_tag_string else []
+		next_tag = [n.strip() for n in re.split(r"[,， ]", next_tag_string)] if next_tag_string else []
 		content_tag_k = request.form.get("content_tag_k")
 		content_tag_v = request.form.get("content_tag_v")
 		content_tag = {content_tag_k: content_tag_v} if content_tag_k and content_tag_v else {}

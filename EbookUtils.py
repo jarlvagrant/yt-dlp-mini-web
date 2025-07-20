@@ -390,7 +390,7 @@ class EpubConverter:
 			self.image = generate_cover(title, self.author)
 		self.ebook.set_cover(file_name="cover.jpg", content=self.image)
 		if self.tags:
-			for t in re.split(r" |,|，|。|\.|;｜；|\||｜|\\\|/|、", self.tags):
+			for t in re.split(r"[ ,，.。;；\\、｜|]", self.tags):
 				self.ebook.add_metadata('DC', 'subject', t)
 		if self.des:
 			self.ebook.add_metadata('DC', 'description', self.des)

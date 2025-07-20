@@ -58,7 +58,7 @@ def main():
 	app.add_url_rule("/ebook", methods=['GET'], view_func=EBook.as_view("ebook"))
 	app.add_url_rule("/ebk_urls", methods=['GET', 'POST'], view_func=EbookUrls.as_view("ebk_urls"))
 	app.add_url_rule("/ebk_uploads", methods=['GET', 'POST'], view_func=EbookUploads.as_view("ebk_upload"))
-	app.add_url_rule("/ebk_list_server_files", methods=['GET'], view_func=EbookServerFiles.as_view("ebk_list_server_files"))
+	app.add_url_rule("/ebk_list_server_files", methods=['GET', 'POST'], view_func=EbookServerFiles.as_view("ebk_list_server_files"))
 	app.add_url_rule("/ebk_sync_input", methods=['POST'], view_func=EbookSyncInput.as_view("ebk_sync_input"))
 	app.add_url_rule("/ebk_sync_output", methods=['POST'], view_func=EbookSyncOutput.as_view("ebk_sync_output"))
 	app.add_url_rule("/ebk_cover", methods=['POST'], view_func=EbookCover.as_view("ebk_cover"))
