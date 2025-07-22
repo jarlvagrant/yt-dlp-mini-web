@@ -295,10 +295,10 @@ class UrlBookStatus(LocalBookStatus):
 
 
 class EpubConverter:
-	def __init__(self, data, extra="", img_filename="", txt_filename=""):
+	def __init__(self, data, extra="", img_filename="", txt_filename="", path=""):
 		self.data = data
 		self.extra = extra
-		self.path = ConfigIO.get("ebook_dir")
+		self.path = ConfigIO.get("ebook_dir") if not path else path
 		self.title, self.author, self.tags, self.des = get_meta_data(self.extra, self.data, txt_filename)
 		self.info = ""
 		self.image = read_image(img_filename)

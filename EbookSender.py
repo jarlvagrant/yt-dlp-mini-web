@@ -15,7 +15,7 @@ from flask.views import View
 
 from EbookUtils import clean_txt, EbookWebExtractor, EpubConverter, getKindleGenBin, LocalBookStatus, UrlBookStatus, \
 	extractHtmlImage
-from Utils import ConfigIO, SendEmail, getInitialFolder, getSubfolders, log_path, read_binary_file, SymlinkIO
+from Utils import ConfigIO, SendEmail, getInitialFolder, getSubfolders, log_path, read_binary_file, SymlinkIO, ImageIO
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ def link_mobi(path, file_name, file_extension):
 
 class EbookPreview(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		path = ConfigIO.get("ebook_dir")
+		path = request.form.get("dp", '')
 		file_name = request.form.get('file_name')
 		data = b""
 		if os.path.isfile(os.path.join(path, file_name + ".txt")):
@@ -173,6 +173,7 @@ class EbookPreview(View):
 						break
 					data += buffer
 				f.close()
+			logger.debug(f"preview file path: {os.path.join(path, file_name + ".txt")}")
 			return jsonify(code=200, data=clean_txt(data))
 		else:
 			logger.error(f"Invalid preview file path: {os.path.join(path, file_name + ".txt")}")
@@ -264,21 +265,14 @@ def extractor_worker(url, args, to_email):
 
 class EbookEmail(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		keys = request.form.getlist("keys[]")
-		sub_key = request.form.get("sub_key")
+		paths = request.form.getlist("paths[]")
 		code = 200
 		message = ""
-		for key in keys:
-			value = url_book_dict.get_value_if_key(key, sub_key) \
-				if url_book_dict.get_value_if_key(key, sub_key) else local_book_dict.get_value_if_key(key, sub_key)
-			if value:
-				logger.debug(f"Sending email with attachment {value}")
-				sender = SendEmail(value)
-				code = 400 if not sender.send() else code
-				message += sender.message + "\n"
-			else:
-				logger.error(f"Failed sending email: {key}->{sub_key} not found!")
-				message += f"Failed sending email: {key}->{sub_key} not found!\n"
+		for path in paths:
+			logger.debug(f"Sending email with attachment {path}")
+			sender = SendEmail(path)
+			code = 400 if not sender.send() else code
+			message += sender.message + "\n"
 		return jsonify(code=code, message=message)
 
 
@@ -308,7 +302,7 @@ class EbookConverterTask(View):
 
 class EbookToFormat(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
-		path = ConfigIO.get("ebook_dir")
+		path = request.form.get('dp', '')
 		file_name = request.form.get('file_name', '')
 		ext = request.form.get('ext', '')
 		txt_path = os.path.join(path, file_name + ".txt")
@@ -317,10 +311,11 @@ class EbookToFormat(View):
 			logger.error(f"Failed converting {file_name}: neither txt nor epub is found!")
 			return jsonify(code=500, message=f"Failed converting {file_name}: neither txt nor epub is found!")
 		if not os.path.isfile(epub_path):
-			converter = EpubConverter(clean_txt(read_binary_file(txt_path)), "", None, clean_txt(file_name))
+			converter = EpubConverter(clean_txt(read_binary_file(txt_path)), "", None, clean_txt(file_name), path)
 			epub_path = converter.convert()
+			logger.info(f"Converted {file_name} to epub: {epub_path}")
 		if not os.path.isfile(epub_path):
-			logger.error(f"Failed converting {file_name} to epub!")
+			logger.error(f"Failed converting {file_name} to epub!") 
 			return jsonify(code=501, message=f"Failed converting {file_name} to epub!")
 		elif ext == "epub":
 			return jsonify(code=200, epub=epub_path, message="Convert success: " + epub_path)
@@ -349,7 +344,7 @@ class EbookCover(View):
 		file = request.files.get('image')
 		if key and file:
 			image_name = file.filename
-			image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
+			image_path = os.path.join(ImageIO.getPath(), image_name)
 			image = file.read()
 			logger.debug(f"Save image: {image_name} to {image_path}")
 			if image:
@@ -368,7 +363,7 @@ class EbookCoverUrl(View):
 		if key and url:
 			image = extractHtmlImage(url)
 			image_name = Path(url).stem + ".jpg"
-			image_path = os.path.join(ConfigIO.get("ebook_dir"), image_name)
+			image_path = os.path.join(ImageIO.getPath(), image_name)
 			logger.debug(f"Save image: {url} to {image_path}")
 			if image:
 				with open(image_path, "wb") as f:

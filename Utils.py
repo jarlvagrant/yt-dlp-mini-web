@@ -16,6 +16,7 @@ config_path = "configs"
 config_file = "config.json"
 cache_path = "cache"
 symlink_path = os.path.join(cache_path, "symlinks")
+image_path = os.path.join(cache_path, "image")
 book_csv_file = "books.csv"
 book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'created']
 
@@ -179,6 +180,7 @@ class CacheIO:
 
 
 SymlinkIO = CacheIO(path=symlink_path)
+ImageIO = CacheIO(path=image_path)
 
 
 def getInitialFolder(dir_type):

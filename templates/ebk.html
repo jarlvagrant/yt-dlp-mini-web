@@ -176,6 +176,10 @@
 
     function extract_content(input, to_email=false) {
         let part = input.innerText;
+        if (document.getElementById('txt' + part).href) {
+            let answer = confirm(part + " txt exist, overwrite?")
+            if (answer === false) return;
+        }
         let data = {
             'url': part,
             'intro': document.getElementById('intro' + part).value,
@@ -187,10 +191,6 @@
             'content_tag_v': document.getElementById('content_tag_v' + part).value,
             'to_email' : to_email
         };
-        if (document.getElementById('txt' + part).href) {
-            let answer = confirm(part + " txt exist, overwrite?")
-            if (answer === false) return;
-        }
         console.log(data);
         $.post("/ebk_extractor_task", data, function (response) {
             if (response.code === 200) {
@@ -246,15 +246,15 @@
     // need to check if input is the same on collapsible_content
     function convert(input, to_email=false) {
         let part = input.innerText;
+        if (document.getElementById("epub" + part).href) {
+            let answer = confirm(part + ": Epub file exists, overwrite?");
+            if (answer === false) return;
+        }
         let data = {
             'key': part,
             'intro': document.getElementById('intro' + part).value,
             'to_email': to_email
         };
-        if (document.getElementById("epub" + part).href) {
-            let answer = confirm(part + ": Epub file exists, overwrite?");
-            if (answer === false) return;
-        }
         console.log(data);
         $.post("/ebk_convert_task", data, function (response) {
             if (response.epub && response.epub.length > 0) {
@@ -335,26 +335,31 @@
     }
 
     function email_epub(input) {
-        let part = input.innerText;
-        console.log(part);
-        $.post("/ebk_email", {'keys[]':[part], 'sub_key': 'epub'}, function (response) {
-            window.alert(response.message);
-        });
+        let path = document.getElementById("epub" + input.innerText).href
+        if (!path || path.length === 0) {
+            window.alert("Please convert/extract selected task first!");
+        } else {
+            console.log("request sending email with attachment: " + path);
+            $.post("/ebk_email", {'paths[]': [path]}, function (response) {
+                window.alert(response.message);
+            });
+        }
     }
 
     function email_epub_all() {
         let items = document.getElementsByClassName("collapsible");
-        let keys = []
+        let paths = []
         for (let i = 0; i < items.length; i++) {
-            keys.push(items[i].innerText)
+            let path = document.getElementById("epub" + items[i].innerText).href
+            if (path && path.length > 0) paths.push(path)
         }
-        console.log(keys);
+        console.log(paths);
         let answer = true;
-        if (keys.length > 3) {
-            answer = confirm("Confirm to email " + keys.length + " epubs:\n" + keys.join("\n"));
+        if (paths.length > 3) {
+            answer = confirm("Confirm to email " + paths.length + " epubs:\n" + paths.join("\n"));
         }
-        if (answer === false) return;
-        $.post("ebk_email", {'keys': keys, 'sub_key': 'epub'}, function (response) {
+        if (paths.length === 0 || answer === false) return;
+        $.post("ebk_email", {'paths[]': paths}, function (response) {
             window.alert(response.message);
         })
     }
