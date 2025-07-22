@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import shutil
 import smtplib
 from email.message import EmailMessage
 from pathlib import Path
@@ -13,6 +14,8 @@ log_path = "logs"
 log_file = "debug.log"
 config_path = "configs"
 config_file = "config.json"
+cache_path = "cache"
+symlink_path = os.path.join(cache_path, "symlinks")
 book_csv_file = "books.csv"
 book_csv_columns = ['title', 'author', 'path', 'format', 'size', 'updated', 'created']
 
@@ -151,6 +154,31 @@ class CsvIO:
 
 ConfigIO = JsonIO()
 BooksIO = CsvIO()
+
+
+class CacheIO:
+	def __init__(self, path=cache_path):
+		self.path = path
+		if not os.path.isdir(path):
+			os.makedirs(path)
+		self.clear()
+
+	def getPath(self):
+		return self.path
+
+	def clear(self):
+		for filename in os.listdir(self.path):
+			file_path = os.path.join(self.path, filename)
+			try:
+				if os.path.isfile(file_path) or os.path.islink(file_path):
+					os.unlink(file_path)
+				elif os.path.isdir(file_path):
+					shutil.rmtree(file_path)
+			except Exception as e:
+				logger.warning('Failed to delete %s. Reason: %s' % (file_path, e))
+
+
+SymlinkIO = CacheIO(path=symlink_path)
 
 
 def getInitialFolder(dir_type):

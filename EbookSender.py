@@ -1,3 +1,4 @@
+import errno
 import logging
 import os
 import re
@@ -14,7 +15,7 @@ from flask.views import View
 
 from EbookUtils import clean_txt, EbookWebExtractor, EpubConverter, getKindleGenBin, LocalBookStatus, UrlBookStatus, \
 	extractHtmlImage
-from Utils import ConfigIO, SendEmail, getInitialFolder, getSubfolders, log_path, read_binary_file
+from Utils import ConfigIO, SendEmail, getInitialFolder, getSubfolders, log_path, read_binary_file, SymlinkIO
 
 logger = logging.getLogger(__name__)
 
@@ -73,16 +74,18 @@ class EbookServerFiles(View):
 		for dp, dn, filenames in os.walk(path):
 			rp = '.' + dp.replace(path, '')
 			for f in filenames:
+				f_path = os.path.join(dp, f)
+				if os.path.islink(f_path):
+					continue
 				stem, ext = os.path.splitext(f)
 				ext = ext.lstrip(".")
-				f_path = os.path.join(dp, f)
-				if ext in file_types:
-					if not files.get(stem, ''):
-						files[stem] = {'dp': dp + os.sep, 'rp': rp, 'ext': [ext], 'date': os.path.getctime(f_path)}
-					else:
-						files[stem]['ext'].append(ext)
-						files[stem]['date'] = os.path.getctime(f_path) if files[stem]['date'] > os.path.getctime(
-							f_path) else files[stem]['date']
+				if ext not in file_types:
+					continue
+				if not files.get(stem, ''):
+					files[stem] = {'dp': dp + os.sep, 'rp': rp, 'ext': [ext], 'date': os.path.getctime(f_path)}
+				else:
+					files[stem]['ext'].append(ext)
+					files[stem]['date'] = os.path.getctime(f_path) if files[stem]['date'] > os.path.getctime(f_path) else files[stem]['date']
 		if sort_by:
 			files = sort_files_by(sort_by, files, reverse=reverse)
 		return render_template('ebk_listfiles.html', files=files)
@@ -140,16 +143,20 @@ class EbookDownload(View):
 
 
 def link_mobi(path, file_name, file_extension):
-	if file_extension != ".mobi":
+	if file_extension != ".mobi" or pinyin.get(file_name, format="strip") == file_name:
 		return ""
-	temp_path = os.path.join(path, "temp")  # folder to store symbolic links for mobi files with pinyin as name
-	if not os.path.exists(temp_path):
-		os.makedirs(temp_path)
 	mobi_pinyin = pinyin.get(file_name, format="strip")
-	mobi_pinyin_path = os.path.join(temp_path, mobi_pinyin + file_extension)
-	if not os.path.exists(mobi_pinyin_path):
-		os.symlink(os.path.join(path, file_name + file_extension), mobi_pinyin_path)
-	logger.debug(f"symlink {file_name} <- {mobi_pinyin_path}")
+	mobi_pinyin_path = os.path.join(SymlinkIO.getPath() , mobi_pinyin + file_extension)
+	mobi_path = os.path.join(path, file_name + file_extension)
+	logger.debug(f"Create symlink {mobi_pinyin_path}->{mobi_path}")
+	try:
+		os.symlink(mobi_path, mobi_pinyin_path)
+	except OSError as e:
+		if e.errno == errno.EEXIST and os.path.islink(mobi_pinyin_path):
+			os.unlink(mobi_pinyin_path)
+			os.symlink(mobi_path, mobi_pinyin_path)
+		else:
+			logger.warning("Failed create symlink %s->%s: %s" % (mobi_pinyin_path, mobi_path, e))
 	return mobi_pinyin_path
 
 
