@@ -335,7 +335,8 @@
     }
 
     function email_epub(input) {
-        let path = document.getElementById("epub" + input.innerText).href
+        let url = document.getElementById("epub" + input.innerText).href;
+        let path = decodeURI(url.split("file_path=")[1]);
         if (!path || path.length === 0) {
             window.alert("Please convert/extract selected task first!");
         } else {
@@ -350,7 +351,8 @@
         let items = document.getElementsByClassName("collapsible");
         let paths = []
         for (let i = 0; i < items.length; i++) {
-            let path = document.getElementById("epub" + items[i].innerText).href
+            let url = document.getElementById("epub" + items[i].innerText).href
+            let path = decodeURI(url.split("file_path=")[1]);
             if (path && path.length > 0) paths.push(path)
         }
         console.log(paths);
