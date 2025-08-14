@@ -110,27 +110,35 @@
             menu.style.top = event.pageY + "px";
             document.getElementById("preview").onclick = function handle_preview() {
                 preview(event, dp);
+                hideItemMenu();
             }
             document.getElementById("edit").onclick = function handle_edit() {
                 edit(event, dp);
+                hideItemMenu();
             }
             document.getElementById("rename").onclick = function handle_rename() {
                 rename(event, dp);
+                hideItemMenu();
             }
             document.getElementById("convert_epub").onclick = function handle_convert_epub() {
                 convert_epub(event, dp);
+                hideItemMenu();
             }
             document.getElementById("convert_mobi").onclick = function handle_convert_mobi() {
                 convert_mobi(event, dp);
+                hideItemMenu();
             }
             document.getElementById("convert_pdf").onclick = function handle_convert_pdf() {
                 convert_pdf(event, dp);
+                hideItemMenu();
             }
             document.getElementById("email").onclick = function handle_email() {
                 email(event, dp);
+                hideItemMenu();
             }
             document.getElementById("delete").onclick = function handle_delete() {
                 delete_file(event, dp);
+                hideItemMenu();
             }
         }
     }
@@ -138,7 +146,6 @@
     function preview(event, dp) {
         let file_name = event.target.innerText;
         console.log("preview " + dp + file_name);
-        hideItemMenu();
         $.post("/ebk_preview", {'file_name': file_name, 'dp': dp}, function (response) {
             if (response.code === 200) {
                 let view = document.getElementById('preview_div');
@@ -162,7 +169,6 @@
     function convert_epub(event, dp) {
         let file_name = event.target.innerText;
         console.log("convert to epub: " + dp + file_name);
-        hideItemMenu();
         $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'epub', 'dp': dp}, function (response) {
             if (response.epub && response.epub.length > 0) {
                 let epub = document.getElementById(file_name + ".epub");
@@ -184,7 +190,6 @@
     function convert_mobi(event, dp) {
         let file_name = event.target.innerText;
         console.log("convert to mobi: " + file_name);
-        hideItemMenu();
         $.post("/ebk_to_format", {'file_name': file_name, 'ext': 'mobi', 'dp': dp}, function (response) {
             if (response.epub && response.epub.length > 0) {
                 let epub = document.getElementById(file_name + ".epub");
@@ -206,13 +211,16 @@
 
     function email(event, dp) {
         let file_name = event.target.innerText;
-        console.log("email epub: " + file_name);
-
-        let part = input.innerText;
-        console.log(part);
-        $.post("/ebk_email", {'keys[]': [part], 'sub_key': 'epub', 'dp': dp}, function (response) {
-            window.alert(response.message);
-        });
+        let url = document.getElementById(file_name + ".epub").href;
+        if (!url || url.length === 0) {
+            window.alert("Please convert selected task first!");
+        } else {
+            let path = decodeURI(url.split("file_path=")[1]);
+            console.log("request sending email with attachment: " + path);
+            $.post("/ebk_email", {'paths[]': [path]}, function (response) {
+                window.alert(response.message);
+            });
+        }
     }
 
     function delete_file(event, dp) {
