@@ -1,2 +1,1 @@
-# yld_webwrapper
-Spare time projects for mostly learning.
+# yt-dlp-mini-web

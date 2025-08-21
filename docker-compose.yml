@@ -1,0 +1,17 @@
+services:
+  yld_webwrapper:
+    build:
+      dockerfile: ./Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    environment:
+      - PUID=1039
+      - PGID=65536
+      - UMASK=022
+      - TZ=America/Los_Angeles
+    volumes:
+      - /volume1/media/youtube:/video
+      - /volume1/media/music/Youtube:/audio
+      - /volume1/docker/python-tools/configs:/app/configs
+      - /volume1/docker/python-tools/logs:/app/logs
