@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import time
 from multiprocessing import Process, Queue
 
 import yt_dlp
@@ -48,6 +49,8 @@ class Task:
 	def stop(self):
 		if self.process and self.process.is_alive():
 			self.process.terminate()
+			time.sleep(0.1)
+		if self.process and not self.process.is_alive():
 			self.status['state'] = 'stop'
 			self.status['switch'] = 'start'
 			self.status['color'] = "background-color: slategray;"
@@ -96,6 +99,7 @@ class TaskMaker(View):
 						self.message = "Unknown state: " + task.status.__str__()
 				else:
 					# start downloading
+					logger.info(f"Downloading {self.url}: ext={self.ext} output={self.output_dir} playlist_items{self.playlist_items}" )
 					tasks.append(Task(self.url, self.ext, self.output_dir, self.playlist_items))
 		elif self.action == "stop":
 			# to stop an existing downloads
@@ -105,9 +109,9 @@ class TaskMaker(View):
 			for task in tasks:
 				self.stop_task(task)
 		elif self.action == "clear":
-			# clear downloading list, remove completed tasks from the list
+			# clear downloading list, remove completed or stopped tasks from the list
 			for task in tasks[:]: # make a copy of the list to avoid skippint items
-				if task.status['state'] == 'complete':
+				if task.status['state'] != 'start':
 					tasks.remove(task)
 		logger.info(f"Task {self.action}: url={self.url} code={self.code} message={self.message}")
 		return jsonify(code=self.code, message=self.message)
@@ -170,28 +174,35 @@ class Downloader:
 		self.download_video()
 
 	def download_video(self):
-		logger.info(f"Downloading {self.url}: ext={self.ext} output={self.output_dir} playlist_items{self.playlist_items}" )
-		with yt_dlp.YoutubeDL({'extract_flat': "in_playlist"}) as ydl:
-			info_dict = ydl.extract_info(self.url, download=False)
-			self.title = info_dict.get('title', '')
-			self.queue.put(('title', self.title))
-			ydl.close()
+		# with yt_dlp.YoutubeDL({'extract_flat': "in_playlist"}) as ydl:
+		# 	info_dict = ydl.extract_info(self.url, download=False)
+		# 	self.title = info_dict.get('title', '')
+		# 	self.queue.put(('title', self.title))
+		# 	ydl.close()
+
+		def my_hook(d):
+			if not self.title and d['info_dict'] and d['info_dict']['title']:
+				self.title = d['info_dict']['title']
+				self.queue.put(('title', self.title))
 
 		ydl_opts = {
 			"outtmpl": self.output_dir + "/%(title)s.%(ext)s",
 			"playlist_items" : self.playlist_items,
 			'logger': MyLogger(self.queue),
 			'format': self.ext,
+			'progress_hooks': [my_hook],
 		}
-		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-			error = ydl.download(self.url)
+
+		try:
+			ydl = yt_dlp.YoutubeDL(ydl_opts)
+			ydl.download(self.url)
 			ydl.close()
-		if error != 0:
-			self.queue.put(('info', f"Downloading failed: {self.title}"))
-		else:
-			self.queue.put(('width', f"width:100%"))
 			self.queue.put(('info', f"Download completed: {self.title}"))
-		self.queue.put(('state', 'complete'))
+			self.queue.put(('width', f"width:100%"))
+			self.queue.put(('state', 'complete'))
+		except Exception as e:
+			self.queue.put(('info', f"Download failed: {self.title}"))
+			self.queue.put(('info', e.__str__()))
 
 
 class MyLogger:
