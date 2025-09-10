@@ -1,4 +1,5 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<div id="progressing" style="display: none">{{ progressing }}</div>
 {% if prog_dict|length > 0 %}
 {% block header %}
 <div>

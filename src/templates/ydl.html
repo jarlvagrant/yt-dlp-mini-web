@@ -27,7 +27,7 @@
 {% block content %}
 <form action="javascript:start_task()" method="post">
     <h3>Youtube Url:</h3>
-    <input type="url" name="youtube_url" value="" id="youtube_url" style="margin-left: 0" required>
+    <input type="url" name="youtube_url" value="" id="youtube_url" onchange="close_selection()" style="margin-left: 0" required>
     <h3>Options:</h3>
     <table>
         <tr>
@@ -89,10 +89,25 @@
 </form>
 <div id="prog"></div>
 <script>
+    $("#prog").load("/progress");
 
-    setInterval(update, 1000);
+    let intervalId = -1;
+    update();
+
     function update() {
-        $("#prog").load("/progress");
+        if (intervalId !== -1)
+            return
+        intervalId = setInterval(function() {
+            $("#prog").load("/progress");
+            setTimeout(function() {
+                let progressing = document.getElementById("progressing").innerText;
+                console.log("refreshing " + progressing);
+                if (progressing === "False") {
+                    clearInterval(intervalId);
+                    intervalId = -1;
+                }
+            }, 5000);
+        }, 1000);
     }
 
     function toggle_advanced() {
@@ -116,6 +131,15 @@
                 add_selection("audio_select", data.audios);
             })
         }
+    }
+
+    function close_selection() {
+        let elements = document.getElementsByClassName("advanced");
+        for (let i = 0; i < elements.length; i++) {
+            elements[i].style.display = "none";
+        }
+        clean_selection("video_select");
+        clean_selection("audio_select");
     }
 
     function clean_selection(id) {
@@ -175,6 +199,7 @@
             } else {
                 window.alert(response.message);
             }
+            update();
         });
     }
 
@@ -189,6 +214,7 @@
             } else {
                 window.alert(response.message);
             }
+            update();
         });
     }
 
@@ -203,6 +229,7 @@
             } else {
                 window.alert(response.message);
             }
+            update();
         });
     }
 

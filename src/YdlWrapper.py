@@ -52,12 +52,15 @@ class Task:
 		if self.process and self.process.is_alive():
 			self.process.terminate()
 			time.sleep(0.1)
-		if self.process and not self.process.is_alive():
-			self.status['state'] = 'stop'
-			self.status['switch'] = 'start'
-			self.status['color'] = "background-color: slategray;"
-			return True
-		return False
+		return self.isStopped()
+
+	def isStopped(self):
+		if self.process and self.process.is_alive():
+			return False
+		self.status['state'] = 'stop'
+		self.status['switch'] = 'start'
+		self.status['color'] = "background-color: slategray;"
+		return True
 
 def parse_arg(input_string, arg):
 	match = re.search(rf"{arg}([^,]*)", input_string)
@@ -129,8 +132,10 @@ class TaskMaker(View):
 		elif self.action == "clear":
 			# clear downloading list, remove completed or stopped tasks from the list
 			for task in tasks[:]: # make a copy of the list to avoid skippint items
-				if task.status['state'] != 'start':
+				if task.isStopped():
 					tasks.remove(task)
+				else:
+					self.message += f"url={self.url} status={task.status.__str__()}"
 		logger.info(f"Task {self.action}: url={self.url} code={self.code} message={self.message}")
 		return jsonify(code=self.code, message=self.message)
 
@@ -150,7 +155,10 @@ class TaskMaker(View):
 class Progress(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		prog_dict = {}
+		progressing = False
 		for task in tasks:
+			if not task.isStopped():
+				progressing = True
 			if task.queue:
 				while not task.queue.empty():
 					k, v = task.queue.get_nowait()
@@ -167,8 +175,8 @@ class Progress(View):
 					else:
 						task.status[k] = v
 			prog_dict[task.url] = task.status
-		# print(prog_dict.__str__())
-		return render_template("progress.html", prog_dict=prog_dict)
+			logger.info("progress: " + progressing.__str__())
+		return render_template("progress.html", prog_dict=prog_dict, progressing=progressing)
 
 
 class FetchFormats(View):
@@ -231,8 +239,6 @@ class Downloader:
 
 			best_video = next(f for f in formats if f['format_id'] == self.selector_args.get('video_format_id'))
 			best_audio = next(f for f in formats if f['format_id'] == self.selector_args.get('audio_format_id'))
-			logger.info(best_video)
-			logger.info(best_audio)
 
 			yield {
 				'format_id': f'{best_video["format_id"]}+{best_audio["format_id"]}',
@@ -263,6 +269,7 @@ class Downloader:
 		except Exception as e:
 			self.queue.put(('info', f"Download failed: {self.title}"))
 			self.queue.put(('info', e.__str__()))
+		exit()
 
 
 class MyLogger:
