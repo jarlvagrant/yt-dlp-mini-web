@@ -1,5 +1,5 @@
 services:
-  yld_webwrapper:
+  youtube-dl:
     build:
       dockerfile: ./Dockerfile
     restart: unless-stopped
