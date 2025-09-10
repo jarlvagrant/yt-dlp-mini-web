@@ -11,12 +11,21 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: serif;
-  color: #377ba8;
-  margin: 1rem 0;
+  margin: 0;
 }
 
 h1 {
   font-size: 2rem;
+  color: #377ba8;
+}
+h2 {
+  font-size: 1.5rem;
+  margin: 1.4rem 1rem 0.2rem 0;
+}
+h3 {
+  font-size: 1.2rem;
+  color: #377ba8;
+  margin: 1rem 1rem 0.2rem 0;
 }
 
 a {
@@ -118,6 +127,7 @@ nav ul li a, nav ul li span, header .action {
 .content label {
   font-weight: bold;
   margin-left: 1em;
+  margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
@@ -139,8 +149,8 @@ div.right {
 }
 
 .content input {
+  background-color: #c7deed;
   margin-left: 1em;
-  margin-bottom: 1em;
 }
 
 .content textarea {
@@ -159,10 +169,6 @@ input.gray {
   background: #dee8e9 ;
 }
 
-input.table {
-  margin-bottom: 0;
-}
-
 .error {
   border:2px solid red;
 }
@@ -171,18 +177,12 @@ input.table {
   border:2px solid goldenrod;
 }
 
-input[type=submit] {
-  align-self: start;
+button {
+  margin-left: 0;
   min-width: 10em;
-}
-
-.button {
-  margin-top: 0.2em;
-  min-width: 10em;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 0.85em;
+  min-height: 2em;
+  background-color: #dadbdc;
+  font-weight: bold;
 }
 
 .progress {
@@ -205,3 +205,15 @@ input[type=submit] {
   display: inline-block;
   height: 100%;
 }
+
+table {
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #ddd;
+  text-align: left;
+  color: #377ba8;
+}
+
+tr:nth-child(odd){background-color: #f2f2f2;}

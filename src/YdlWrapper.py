@@ -14,14 +14,16 @@ logger = logging.getLogger(__name__)
 
 tasks = []
 
-output_formats = {'video': "bestvideo[ext=mp4][height<=720][vcodec!~=av01]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
-                  'audio': 'bestaudio[ext=m4a][acodec!~=opus]/best'}
-
+output_formats = { 'video': "bestvideo[ext=mp4][height<=720][vcodec!~=av01]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
+                   'audio': 'bestaudio[ext=m4a][acodec!~=opus]/best'}
+video_args = ['format_id', 'format', 'fps', 'protocol', 'vcodec', 'ext']
+audio_args = ['format_id', 'format', 'protocol', 'ext']
 
 class Task:
-	def __init__(self, url, ext, output_dir, playlist_items):
+	def __init__(self, url, ext, selector_args, output_dir, playlist_items):
 		self.url = url
 		self.ext = ext
+		self.selector_args = selector_args
 		self.output_dir = output_dir
 		self.playlist_items = playlist_items
 		self.status = {"title": "unknown", # video/audio title
@@ -33,12 +35,12 @@ class Task:
 		               "color": "background-color: #7cc4ff;" # progress bar background-color: slategray/#7cc4ff
 		               }
 		self.queue = Queue()
-		self.process = Process(target=Downloader, args=(self.url, self.ext, self.output_dir, self.playlist_items, self.queue))
+		self.process = Process(target=Downloader, args=(self.url, self.ext, self.selector_args, self.output_dir, self.playlist_items, self.queue))
 		self.process.start()
 
 	def restart(self):
 		if not self.process or not self.process.is_alive():
-			self.process = Process(target=Downloader, args=(self.url, self.ext, self.output_dir, self.playlist_items, self.queue))
+			self.process = Process(target=Downloader, args=(self.url, self.ext, self.selector_args, self.output_dir, self.playlist_items, self.queue))
 			self.status['state'] = 'start'
 			self.status['switch'] = "stop"
 			self.status['color'] = "background-color: #7cc4ff;"
@@ -57,20 +59,36 @@ class Task:
 			return True
 		return False
 
+def parse_arg(input_string, arg):
+	match = re.search(rf"{arg}([^,]*)", input_string)
+	if match:
+		logger.info(match.group(1))
+		return match.group(1)
+	return ""
 
 class TaskMaker(View):
 	def __init__(self):
-		self.ext = output_formats.get("video", "")
-		self.output_dir = ConfigIO.get("video_dir")
-		if request.form.get("audio") == "true":
-			self.ext = output_formats.get("audio", "")
-			self.output_dir = ConfigIO.get("audio_dir")
-
 		self.url = request.form.get("url", "")
 		self.action = request.form.get("action", "")
-		resolution = request.form.get("resolution", "720", type=str)
-		self.ext = self.ext.replace("720", resolution)
 		self.playlist_items = request.form.get("playlist_items", "")
+		self.selector_args = {}
+
+		output_type = request.form.get("output_type", "video")
+		resolution = request.form.get("resolution", "720", type=str)
+		quality = request.form.get("quality", "best", type=str)
+		video_format_id = parse_arg(resolution, "format_id=")
+		audio_format_id = parse_arg(quality, "format_id=")
+
+		if audio_format_id:
+			self.selector_args['audio_format_id'] = audio_format_id
+		if output_type == "video" and video_format_id:
+			self.selector_args['video_format_id'] = video_format_id
+
+		self.ext = output_formats.get("video", "").replace("720", resolution) if resolution in ['1080', '720', '480'] else ""
+		self.output_dir = ConfigIO.get("video_dir")
+		if output_type == "audio":
+			self.ext = output_formats.get("audio", "").replace("best", quality) if quality in['best', 'worst'] else ""
+			self.output_dir = ConfigIO.get("audio_dir")
 
 		self.code = 200
 		self.message = "success"
@@ -99,8 +117,8 @@ class TaskMaker(View):
 						self.message = "Unknown state: " + task.status.__str__()
 				else:
 					# start downloading
-					logger.info(f"Downloading {self.url}: ext={self.ext} output={self.output_dir} playlist_items{self.playlist_items}" )
-					tasks.append(Task(self.url, self.ext, self.output_dir, self.playlist_items))
+					logger.info(f"Downloading {self.url}: ext={self.ext} selector_args={self.selector_args} output={self.output_dir} playlist_items{self.playlist_items}" )
+					tasks.append(Task(self.url, self.ext, self.selector_args, self.output_dir, self.playlist_items))
 		elif self.action == "stop":
 			# to stop an existing downloads
 			self.stop_task(self.get_task())
@@ -153,6 +171,27 @@ class Progress(View):
 		return render_template("progress.html", prog_dict=prog_dict)
 
 
+class FetchFormats(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		url = request.form.get("url", "")
+		videos = []
+		audios = []
+		try:
+			ydl = yt_dlp.YoutubeDL({'extract_flat': True})
+			formats = ydl.extract_info(url, download=False).get('formats')
+			for f in formats:
+				if f['vcodec'] != 'none':
+					videos.append([f"{arg}={f[arg]}" for arg in video_args])
+				elif 'acodec' not in f or f['acodec'] != 'none':
+					audios.append([f"{arg}={f[arg]}" for arg in audio_args])
+			ydl.close()
+		except Exception as e:
+			logger.error(e)
+		logger.info("Available video formats: " + videos.__str__())
+		logger.info("Available audio formats: " + audios.__str__())
+		return jsonify(videos=videos, audios=audios)
+
+
 class YoutubeDownloader(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		video_dir = getInitialFolder("video_dir")
@@ -164,9 +203,10 @@ class YoutubeDownloader(View):
 
 
 class Downloader:
-	def __init__(self, url, ext, output_dir, playlist_items, queue):
+	def __init__(self, url, ext, selector_args, output_dir, playlist_items, queue):
 		self.url = url
 		self.ext = ext
+		self.selector_args = selector_args
 		self.output_dir = output_dir
 		self.playlist_items = playlist_items
 		self.queue = queue
@@ -185,6 +225,23 @@ class Downloader:
 				self.title = d['info_dict']['title']
 				self.queue.put(('title', self.title))
 
+		def format_selector(ctx):
+			# formats are already sorted worst to best
+			formats = ctx.get('formats')[::-1]
+
+			best_video = next(f for f in formats if f['format_id'] == self.selector_args.get('video_format_id'))
+			best_audio = next(f for f in formats if f['format_id'] == self.selector_args.get('audio_format_id'))
+			logger.info(best_video)
+			logger.info(best_audio)
+
+			yield {
+				'format_id': f'{best_video["format_id"]}+{best_audio["format_id"]}',
+				'ext': best_video['ext'],
+				'requested_formats': [best_video, best_audio],
+				# Must be + separated list of protocols
+				'protocol': f'{best_video["protocol"]}+{best_audio["protocol"]}'
+			}
+
 		ydl_opts = {
 			"outtmpl": self.output_dir + "/%(title)s.%(ext)s",
 			"playlist_items" : self.playlist_items,
@@ -192,6 +249,9 @@ class Downloader:
 			'format': self.ext,
 			'progress_hooks': [my_hook],
 		}
+
+		if self.selector_args:
+			ydl_opts['format'] = format_selector
 
 		try:
 			ydl = yt_dlp.YoutubeDL(ydl_opts)

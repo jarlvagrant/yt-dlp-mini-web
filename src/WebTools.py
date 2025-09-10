@@ -9,7 +9,7 @@ from werkzeug.serving import WSGIRequestHandler
 
 from Commons import UpdateDir, UpdateConfig, ListSubfolders
 from Utils import log_path, log_file
-from YdlWrapper import YoutubeDownloader, Progress, TaskMaker
+from YdlWrapper import YoutubeDownloader, Progress, TaskMaker, FetchFormats
 
 
 class Index(View):
@@ -50,6 +50,7 @@ def main():
 	app.add_url_rule("/update_config", methods=['POST'], view_func=UpdateConfig.as_view("update_config"))
 	app.add_url_rule("/list_subfolders", methods=['POST'], view_func=ListSubfolders.as_view("list_subfolders"))
 	app.add_url_rule("/task_maker", methods=['POST'], view_func=TaskMaker.as_view("task_maker"))
+	app.add_url_rule("/fetch_formats", methods=['POST'], view_func=FetchFormats.as_view("fetch_formats"))
 	app.add_url_rule("/youtube", methods=['GET'], view_func=YoutubeDownloader.as_view("youtube"))
 	app.add_url_rule("/progress", methods=['GET'], view_func=Progress.as_view("progress"))
 
