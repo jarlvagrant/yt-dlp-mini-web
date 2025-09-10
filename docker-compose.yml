@@ -13,5 +13,5 @@ services:
     volumes:
       - /volume1/media/youtube:/video
       - /volume1/media/music/Youtube:/audio
-      - /volume1/docker/python-tools/configs:/app/configs
-      - /volume1/docker/python-tools/logs:/app/logs
+      - /volume1/docker/youtube-dl/configs:/app/configs
+      - /volume1/docker/youtube-dl/logs:/app/logs
