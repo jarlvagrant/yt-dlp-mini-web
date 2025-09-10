@@ -4,7 +4,7 @@ services:
       dockerfile: ./Dockerfile
     restart: unless-stopped
     ports:
-      - "8008:8008"
+      - "8009:8008"
     environment:
       - PUID=1039
       - PGID=65536
