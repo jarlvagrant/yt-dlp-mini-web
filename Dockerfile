@@ -18,7 +18,7 @@ WORKDIR /app
 COPY . .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --upgrade -r requirements.txt
+RUN pip install --upgrade --upgrade-strategy eager -r requirements.txt
 
 # Make port 5000 available to the world outside this container
 EXPOSE 8008
