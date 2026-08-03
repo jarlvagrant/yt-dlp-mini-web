@@ -7,7 +7,6 @@ from multiprocessing import Process, Queue
 import yt_dlp
 from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
-from yt_dlp.utils import sanitize_filename
 
 from Utils import ConfigIO, getInitialFolder, getSubfolders
 
@@ -231,7 +230,6 @@ class Downloader:
 
 		def my_hook(d):
 			if not self.title and d['info_dict'] and d['info_dict']['title']:
-				d['info_dict']['title'] = sanitize_filename(d['info_dict']['title'])[:200].rstrip()
 				self.title = d['info_dict']['title']
 				self.queue.put(('title', self.title))
 
@@ -251,7 +249,7 @@ class Downloader:
 			}
 
 		ydl_opts = {
-			"outtmpl": self.output_dir + "/%(title)s.%(ext)s",
+			"outtmpl": self.output_dir + "/%(title).240B.%(ext)s",
 			"playlist_items" : self.playlist_items,
 			'logger': MyLogger(self.queue),
 			'format': self.ext,
