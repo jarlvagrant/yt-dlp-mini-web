@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
 
@@ -10,6 +11,15 @@ from werkzeug.serving import WSGIRequestHandler
 from Commons import UpdateDir, UpdateConfig, ListSubfolders
 from Utils import log_path, log_file
 from YdlWrapper import YoutubeDownloader, Progress, TaskMaker, FetchFormats
+
+
+def update_ytdlp():
+	try:
+		# Upgrades yt-dlp to the absolute latest version silently
+		subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
+		print("yt-dlp successfully updated.")
+	except Exception as e:
+		print(f"Failed to update yt-dlp: {e}")
 
 
 class Index(View):
@@ -41,6 +51,8 @@ def init_logging():
 
 
 def main():
+	update_ytdlp()
+
 	init_logging()
 
 	app = Flask(__name__)
