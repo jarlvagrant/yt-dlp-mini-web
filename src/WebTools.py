@@ -15,8 +15,9 @@ from YdlWrapper import YoutubeDownloader, Progress, TaskMaker, FetchFormats
 
 def update_ytdlp():
 	try:
+		subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
 		# Upgrades yt-dlp to the absolute latest version silently
-		subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
+		subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "--pre", "yt-dlp"])
 		print("yt-dlp successfully updated.")
 	except Exception as e:
 		print(f"Failed to update yt-dlp: {e}")
