@@ -8,8 +8,7 @@ import yt_dlp
 from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
 
-from Utils import ConfigIO, getInitialFolder, getSubfolders
-from src.Utils import HistoryIO
+from Utils import ConfigIO, getInitialFolder, getSubfolders, HistoryIO
 
 logger = logging.getLogger(__name__)
 
