@@ -2,10 +2,13 @@ import datetime
 import json
 import logging
 import os
+import time
+from importlib.metadata import version
 from pathlib import Path
 
 log_path = "logs"
 log_file = "debug.log"
+history_file = "history.json"
 config_path = "configs"
 config_file = "config.json"
 
@@ -21,23 +24,21 @@ def getTime():
 	return datetime.datetime.now().__str__()
 
 
-class JsonIO:
-	def __init__(self, path=config_path, json_file=config_file):
+class JsonIOClass:
+	def __init__(self, path="", json_file=""):
 		if not os.path.isdir(path):
 			os.mkdir(path)
 		self.json_path = os.path.join(path, json_file)
 		if not os.path.isfile(self.json_path):
-			with open(self.json_path, "w") as f:
-				self.dict = {
-					"video_dir": "/video",
-					"audio_dir": "/audio"
-				}
-				json.dump(self.dict, f, ensure_ascii=False, indent=4, )
-				f.close()
-		else:
-			with open(self.json_path, 'r') as f:
-				self.dict = json.load(f)
-				f.close()
+			with open(self.json_path, "w", encoding="utf-8") as f:
+				json.dump({'Initialized': time.ctime()}, f, indent=4)
+		self.dict = {}
+		self.load()
+
+	def load(self):
+		with open(self.json_path, 'r') as f:
+			self.dict = json.load(f)
+			f.close()
 
 	def get(self, key, subkey=None):
 		if not subkey:
@@ -50,14 +51,31 @@ class JsonIO:
 		if not subkey:
 			self.dict[key] = value
 		else:
-			if self.dict.get(key, None):
+			if key in self.dict:
 				self.dict[key][subkey] = value
+			else:
+				self.dict[key] = {subkey : value}
 		with open(self.json_path, 'w', encoding='utf-8') as f:
 			json.dump(self.dict, f, ensure_ascii=False, indent=4, )
 			f.close()
 
+class ConfigIOClass(JsonIOClass):
+	def __init__(self, path=config_path, json_file=config_file):
+		super().__init__(path, json_file)
+		if not self.get('video_dir'):
+			self.set('video_dir', '/video')
+		if not self.get('audio_dir'):
+			self.set('audio_dir', '/audio')
 
-ConfigIO = JsonIO()
+
+class HistoryIOClass(JsonIOClass):
+	def __init__(self, path=log_path, json_file=history_file):
+		super().__init__(path, json_file)
+		self.set('yt-dlp', time.ctime(), version('yt-dlp'))
+
+
+ConfigIO = ConfigIOClass()
+HistoryIO = HistoryIOClass()
 
 
 def getInitialFolder(dir_type):

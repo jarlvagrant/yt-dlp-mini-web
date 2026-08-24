@@ -9,6 +9,7 @@ from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
 
 from Utils import ConfigIO, getInitialFolder, getSubfolders
+from src.Utils import HistoryIO
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +267,10 @@ class Downloader:
 			self.queue.put(('info', f"Download completed: {self.title}"))
 			self.queue.put(('width', f"width:100%"))
 			self.queue.put(('state', 'complete'))
+			if self.playlist_items:
+				HistoryIO.set(self.title, {'url': self.url, 'playlist_items': self.playlist_items})
+			else:
+				HistoryIO.set(self.title, {'url': self.url})
 		except Exception as e:
 			self.queue.put(('info', f"Download failed: {self.title}"))
 			self.queue.put(('info', e.__str__()))

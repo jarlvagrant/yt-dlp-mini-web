@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from flask.views import View
 from werkzeug.serving import WSGIRequestHandler
 
-from Commons import UpdateDir, UpdateConfig, ListSubfolders
+from Commons import UpdateDir, UpdateConfig, ListSubfolders, Fetch
 from Utils import log_path, log_file
 from YdlWrapper import YoutubeDownloader, Progress, TaskMaker, FetchFormats
 
@@ -66,6 +66,7 @@ def main():
 	app.add_url_rule("/fetch_formats", methods=['POST'], view_func=FetchFormats.as_view("fetch_formats"))
 	app.add_url_rule("/youtube", methods=['GET'], view_func=YoutubeDownloader.as_view("youtube"))
 	app.add_url_rule("/progress", methods=['GET'], view_func=Progress.as_view("progress"))
+	app.add_url_rule("/fetch", methods=['GET'], view_func=Fetch.as_view("fetch"))
 
 	app.run(debug=True, host='0.0.0.0', port=8008, request_handler=MyRequestHandler)
 

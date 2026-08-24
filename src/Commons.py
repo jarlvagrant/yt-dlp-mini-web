@@ -1,11 +1,10 @@
 import logging
 import os
 
-from flask import typing as ft, request, jsonify
+from flask import typing as ft, request, jsonify, send_from_directory
 from flask.views import View
 
 from Utils import ConfigIO, getSubfolders
-
 
 logger = logging.getLogger(__name__)
 
@@ -54,3 +53,11 @@ class ListSubfolders(View):
 		folders = getSubfolders(cur_dir)
 		logger.debug(f"List subfolders of {cur_dir}: {folders}")
 		return jsonify(folders=folders)
+
+
+class Fetch(View):
+	def dispatch_request(self) -> ft.ResponseReturnValue:
+		path = request.args.get("path")
+		file = request.args.get('file')
+		logger.info(f"Downloaded directory={path} file={file}")
+		return send_from_directory(path, path=file)

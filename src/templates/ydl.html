@@ -85,6 +85,10 @@
     <div>
         <button type="submit" formaction="javascript:toggle_advanced()">Advanced</button>
         <button type="submit">Submit</button>
+        <a style="float: right;" href="{{ url_for('fetch', path='logs', file='debug.log') }}" target="_blank">
+            <button type="button" id="log">Log</button></a>
+        <a style="float: right;" href="{{ url_for('fetch', path='logs', file='history.json') }}" target="_blank">
+            <button type="button" id="history">history</button></a>
     </div>
 </form>
 <div id="prog"></div>
@@ -236,5 +240,6 @@
     function show_error(event) {
         window.alert(event.target.value)
     }
+
 </script>
 {% endblock %}
