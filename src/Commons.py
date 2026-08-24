@@ -59,5 +59,6 @@ class Fetch(View):
 	def dispatch_request(self) -> ft.ResponseReturnValue:
 		path = request.args.get("path")
 		file = request.args.get('file')
+		path = os.path.join(os.getcwd(), path)
 		logger.info(f"Downloaded directory={path} file={file}")
 		return send_from_directory(path, path=file)
