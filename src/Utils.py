@@ -78,7 +78,7 @@ class HistoryIOClass(JsonIOClass):
 		super().set('yt-dlp', time.ctime(), version('yt-dlp'))
 
 	def set(self, key, value, subkey=None):
-		if len(self.dict.keys()) > 2:
+		if len(self.dict.keys()) > 500:
 			self.move_file()
 			self.dict = {'Initialized': time.ctime(), 'yt-dlp': {version('yt-dlp'): time.ctime()}}
 		super().set(key, value, subkey=subkey)
