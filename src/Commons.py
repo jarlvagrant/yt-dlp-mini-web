@@ -61,4 +61,4 @@ class Fetch(View):
 		file = request.args.get('file')
 		path = os.path.join(os.getcwd(), path)
 		logger.info(f"Downloaded directory={path} file={file}")
-		return send_from_directory(path, path=file)
+		return send_from_directory(path, path=file, mimetype='application/json; charset=utf-8')

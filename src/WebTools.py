@@ -58,6 +58,7 @@ def main():
 
 	app = Flask(__name__)
 	app.secret_key = 'mimamuahilachocobooooo'
+	app.config['JSON_AS_ASCII'] = False
 	app.add_url_rule("/", view_func=Index.as_view("index"))
 	app.add_url_rule("/update_dir", methods=['POST'], view_func=UpdateDir.as_view("update_dir"))
 	app.add_url_rule("/update_config", methods=['POST'], view_func=UpdateConfig.as_view("update_config"))

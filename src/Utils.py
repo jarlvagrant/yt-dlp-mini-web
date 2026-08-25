@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import shutil
 import time
 from importlib.metadata import version
 from pathlib import Path
@@ -29,16 +30,16 @@ class JsonIOClass:
 		if not os.path.isdir(path):
 			os.mkdir(path)
 		self.json_path = os.path.join(path, json_file)
-		if not os.path.isfile(self.json_path):
-			with open(self.json_path, "w", encoding="utf-8") as f:
-				json.dump({'Initialized': time.ctime()}, f, indent=4)
 		self.dict = {}
 		self.load()
 
 	def load(self):
-		with open(self.json_path, 'r') as f:
-			self.dict = json.load(f)
-			f.close()
+		if not os.path.isfile(self.json_path):
+			self.dict = {'Initialized': time.ctime()}
+		else:
+			with open(self.json_path, 'r') as f:
+				self.dict = json.load(f)
+				f.close()
 
 	def get(self, key, subkey=None):
 		if not subkey:
@@ -55,6 +56,9 @@ class JsonIOClass:
 				self.dict[key][subkey] = value
 			else:
 				self.dict[key] = {subkey : value}
+		self.save()
+
+	def save(self):
 		with open(self.json_path, 'w', encoding='utf-8') as f:
 			json.dump(self.dict, f, ensure_ascii=False, indent=4, )
 			f.close()
@@ -71,7 +75,16 @@ class ConfigIOClass(JsonIOClass):
 class HistoryIOClass(JsonIOClass):
 	def __init__(self, path=log_path, json_file=history_file):
 		super().__init__(path, json_file)
-		self.set('yt-dlp', time.ctime(), version('yt-dlp'))
+		super().set('yt-dlp', time.ctime(), version('yt-dlp'))
+
+	def set(self, key, value, subkey=None):
+		if len(self.dict.keys()) > 2:
+			self.move_file()
+			self.dict = {'Initialized': time.ctime(), 'yt-dlp': {version('yt-dlp'): time.ctime()}}
+		super().set(key, value, subkey=subkey)
+
+	def move_file(self):
+		shutil.move(self.json_path, self.json_path + '.' + datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
 
 
 ConfigIO = ConfigIOClass()
