@@ -10,7 +10,7 @@ from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
 
 from Utils import ConfigIO, getInitialFolder, getSubfolders, HistoryIO
-from src.AudiobookshelfSetChapters import setChapByFiles
+from AudiobookshelfSetChapters import setChapByFiles
 
 logger = logging.getLogger(__name__)
 
