@@ -3,7 +3,7 @@ import logging
 import requests
 
 # --- CONFIGURATION ---
-ABS_SERVER_URL = "http://audiobookshelf_default:80"  # Replace with your ABS URL
+ABS_SERVER_URL = "http://localhost:13378"  # Replace with your ABS URL
 API_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6IjFmMTFjZDkzLTJiMzEtNGQyZC1hMmY2LWJlZWQ2ZWU2ODBhZCIsIm5hbWUiOiJ5dC1kbHAtbWluaS13ZWIiLCJ0eXBlIjoiYXBpIiwiaWF0IjoxNzkxMzI0MzIxfQ.GOt1ITdSpYuEKyxVk3yQ6oQLAjAmQpyG3TWqNn-rM80"           # Your ABS API Token
 # hardcoded until I have more libraries
 LIB_NAME="Youtube Library"
