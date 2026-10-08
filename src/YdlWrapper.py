@@ -3,12 +3,14 @@ import os
 import re
 import time
 from multiprocessing import Process, Queue
+from pathlib import Path
 
 import yt_dlp
 from flask import typing as ft, request, render_template, jsonify
 from flask.views import View
 
 from Utils import ConfigIO, getInitialFolder, getSubfolders, HistoryIO
+from src.AudiobookshelfSetChapters import setChapByFiles
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +174,10 @@ class Progress(View):
 					elif k == "error":
 						logger.error(v)
 						task.status["error"] = task.status["error"] + v
+					elif k == "state" and v == "complete":
+						# do set chapter by files to audiobookshelf whenever a file finished downloading
+						logger.info("Audiobookshelf: Set chapter by files")
+						setChapByFiles(Path(ConfigIO.get("audio_dir")).name)
 					else:
 						task.status[k] = v
 			prog_dict[task.url] = task.status
