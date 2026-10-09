@@ -3,7 +3,7 @@ import logging
 import requests
 
 # --- CONFIGURATION ---
-ABS_SERVER_URL = "http://audiobookshelf:13378"  # Replace with your ABS URL
+ABS_SERVER_URL = "http://audiobookshelf"  # Replace with your ABS URL
 API_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlJZCI6IjFmMTFjZDkzLTJiMzEtNGQyZC1hMmY2LWJlZWQ2ZWU2ODBhZCIsIm5hbWUiOiJ5dC1kbHAtbWluaS13ZWIiLCJ0eXBlIjoiYXBpIiwiaWF0IjoxNzkxMzI0MzIxfQ.GOt1ITdSpYuEKyxVk3yQ6oQLAjAmQpyG3TWqNn-rM80"           # Your ABS API Token
 # hardcoded until I have more libraries
 LIB_NAME="Youtube Library"
@@ -94,8 +94,14 @@ def auto_set_chapters_from_tracks(book_id):
         logger.info(f"Failed to update chapters: {update_response.text}")
 
 def setChapByFiles(book_name):
-    book_id = get_book_id(LIB_ID, book_name)
-    auto_set_chapters_from_tracks(book_id)
+    try:
+        response = requests.get(ABS_SERVER_URL, timeout=5)
+        response.raise_for_status()
+        book_id = get_book_id(LIB_ID, book_name)
+        auto_set_chapters_from_tracks(book_id)
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to connect to audiobookshelf: {e}")
+
 
 if __name__ == "__main__":
     # auto_set_chapters_from_tracks()
