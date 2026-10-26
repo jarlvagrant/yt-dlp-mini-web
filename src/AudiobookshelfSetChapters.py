@@ -66,20 +66,18 @@ def auto_set_chapters_from_tracks(book_id):
     current_time = 0.0
     
     # Sort tracks by their sequence (disc number, then track number)
-    sorted_tracks = sorted(audio_tracks, key=lambda t: t.get("os_mtime", 0))
+    sorted_tracks = sorted(audio_tracks, key=lambda t: (t.get("discNumber", 1), t.get("index", 0), t.get("path", "")))
 
     for idx, track in enumerate(sorted_tracks):
         duration = float(track.get("duration", 0.0))
         end_time = current_time + duration
-        
-        # Use filename or ID3 title tag for the chapter name
-        title = f"{idx+1} {track.get('metadata', {}).get("filename")}"
-        
+
         chapters_payload.append({
             "id": idx,
             "start": current_time,
             "end": end_time,
-            "title": track.get("metadata", {}).get("title") or track.get("filename")
+            "title": f"{track.get('metadata', {}).get("filename")}"
+            # "title": f"{idx+1} {track.get('metadata', {}).get("filename")}"
         })
         current_time = end_time
 
