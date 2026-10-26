@@ -66,7 +66,7 @@ def auto_set_chapters_from_tracks(book_id):
     current_time = 0.0
     
     # Sort tracks by their sequence (disc number, then track number)
-    sorted_tracks = sorted(audio_tracks, key=lambda t: t.get("addedAt", 0))
+    sorted_tracks = sorted(audio_tracks, key=lambda t: t.get("os_mtime", 0))
 
     for idx, track in enumerate(sorted_tracks):
         duration = float(track.get("duration", 0.0))
@@ -79,7 +79,7 @@ def auto_set_chapters_from_tracks(book_id):
             "id": idx,
             "start": current_time,
             "end": end_time,
-            "title": title
+            "title": track.get("metadata", {}).get("title") or track.get("filename")
         })
         current_time = end_time
 
